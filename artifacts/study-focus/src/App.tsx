@@ -86,67 +86,36 @@ type StudyState = {
 };
 
 const queryClient = new QueryClient();
-const storageKey = 'study-focus-state-v2';
+const storageKey = 'study-focus-state-v3';
 
-const defaultTasks: StudyTask[] = [
-  {
-    id: 'biology',
-    title: 'Cell biology · chapter 4',
-    subject: 'Biology',
-    pages: 10,
-    completedPages: 6,
-    kind: 'Homework',
-    priority: 'High',
-    completed: false,
-  },
-  {
-    id: 'calculus',
-    title: 'Practice integration exercises',
-    subject: 'Mathematics',
-    pages: 6,
-    completedPages: 0,
-    kind: 'Project',
-    priority: 'Medium',
-    completed: false,
-  },
-  {
-    id: 'history',
-    title: 'Review French Revolution notes',
-    subject: 'History',
-    pages: 4,
-    completedPages: 4,
-    kind: 'Test',
-    priority: 'Low',
-    completed: true,
-  },
-];
+const defaultTasks: StudyTask[] = [];
 
 const defaultHistory: PlantSnapshot[] = [
-  { date: 'mon', label: 'Mon', xp: 140, streak: 1, pages: 3, sessions: 1, stage: 2, note: 'A tiny sprout appeared.' },
-  { date: 'tue', label: 'Tue', xp: 190, streak: 2, pages: 5, sessions: 2, stage: 2, note: 'The stem grew taller.' },
-  { date: 'wed', label: 'Wed', xp: 230, streak: 3, pages: 4, sessions: 1, stage: 3, note: 'First leaves unfolded.' },
-  { date: 'thu', label: 'Thu', xp: 260, streak: 4, pages: 6, sessions: 2, stage: 3, note: 'A steady study day.' },
-  { date: 'fri', label: 'Fri', xp: 290, streak: 5, pages: 4, sessions: 1, stage: 3, note: 'The plant feels strong.' },
-  { date: 'sat', label: 'Sat', xp: 320, streak: 6, pages: 7, sessions: 2, stage: 4, note: 'A flower bud is forming.' },
-  { date: 'sun', label: 'Sun', xp: 320, streak: 6, pages: 0, sessions: 0, stage: 4, note: 'Today is still growing.' },
+  { date: 'mon', label: 'Mon', xp: 0, streak: 0, pages: 0, sessions: 0, stage: 1, note: 'A fresh start.' },
+  { date: 'tue', label: 'Tue', xp: 0, streak: 0, pages: 0, sessions: 0, stage: 1, note: 'Ready when you are.' },
+  { date: 'wed', label: 'Wed', xp: 0, streak: 0, pages: 0, sessions: 0, stage: 1, note: 'The garden is waiting.' },
+  { date: 'thu', label: 'Thu', xp: 0, streak: 0, pages: 0, sessions: 0, stage: 1, note: 'No sessions yet.' },
+  { date: 'fri', label: 'Fri', xp: 0, streak: 0, pages: 0, sessions: 0, stage: 1, note: 'Your first page can start today.' },
+  { date: 'sat', label: 'Sat', xp: 0, streak: 0, pages: 0, sessions: 0, stage: 1, note: 'A quiet beginning.' },
+  { date: 'sun', label: 'Sun', xp: 0, streak: 0, pages: 0, sessions: 0, stage: 1, note: 'Today is yours to grow.' },
 ];
 
 const initialState: StudyState = {
   tasks: defaultTasks,
   subjects: ['Biology', 'Mathematics', 'History', 'Languages'],
-  xp: 320,
-  streak: 6,
-  sessions: 12,
-  todayPages: 6,
+  xp: 0,
+  streak: 0,
+  sessions: 0,
+  todayPages: 0,
   todayGoal: 10,
-  distractions: 2,
-  minutesLost: 9,
+  distractions: 0,
+  minutesLost: 0,
   selectedMinutes: 25,
   remainingSeconds: 25 * 60,
   timerRunning: false,
   subject: 'Biology',
   mode: 'Learning',
-  journal: 'The first few pages felt heavy, but I found my rhythm after starting.',
+  journal: '',
   displayName: 'Alex',
   history: defaultHistory,
 };
