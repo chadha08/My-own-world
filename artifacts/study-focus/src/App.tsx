@@ -15,6 +15,7 @@ import {
   Coffee,
   Flame,
   Flower2,
+  House,
   Leaf,
   ListChecks,
   Minus,
@@ -270,6 +271,7 @@ function PlantIllustration({ stage, small = false }: { stage: number; small?: bo
 function Home() {
   const [view, setView] = useState<View>('overview');
   const [state, setState] = useState<StudyState>(() => readState());
+  const [homecoming, setHomecoming] = useState(true);
   const [notice, setNotice] = useState('');
   const [breakReady, setBreakReady] = useState(false);
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -283,6 +285,11 @@ function Home() {
 
   const stage = getPlantStage(state.xp, state.streak);
   const incompleteTasks = state.tasks.filter((task) => !task.completed);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setHomecoming(false), 2100);
+    return () => window.clearTimeout(timeout);
+  }, []);
   const activeTask = incompleteTasks[0] ?? state.tasks[0];
   const pagesDone = state.tasks.reduce((sum, task) => sum + task.completedPages, 0);
   const pagesTotal = state.tasks.reduce((sum, task) => sum + task.pages, 0);
@@ -424,7 +431,23 @@ function Home() {
 
   return (
     <div className="study-app">
-      <aside className="sidebar">
+      <AnimatePresence>
+        {homecoming && (
+          <motion.div className="homecoming-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: .55 }}>
+            <div className="homecoming-stars" aria-hidden="true"><i /><i /><i /><i /><i /></div>
+            <motion.div className="homecoming-orbit orbit-one" animate={{ rotate: 360 }} transition={{ duration: 14, repeat: Infinity, ease: 'linear' }} />
+            <motion.div className="homecoming-orbit orbit-two" animate={{ rotate: -360 }} transition={{ duration: 19, repeat: Infinity, ease: 'linear' }} />
+            <motion.div className="homecoming-content" initial={{ opacity: 0, y: 18, scale: .94 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: .18, duration: .8, ease: [0.22, 1, 0.36, 1] }} exit={{ opacity: 0, y: -12, scale: 1.04 }} >
+              <motion.div className="homecoming-mark" initial={{ scale: 0, rotate: -18 }} animate={{ scale: 1, rotate: 0 }} transition={{ delay: .32, type: 'spring', stiffness: 180, damping: 14 }}><House size={21} /></motion.div>
+              <span className="homecoming-eyebrow">your study garden</span>
+              <h2>You’re home<span>.</span></h2>
+              <p>Let’s grow something good today, {state.displayName}.</p>
+              <motion.div className="homecoming-line" initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ delay: .65, duration: .7 }} />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <motion.aside className="sidebar" initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: .2, duration: .7, ease: [0.22, 1, 0.36, 1] }}>
         <div className="brand-lockup">
           <div className="brand-mark"><Leaf size={18} /></div>
           <div>
@@ -455,9 +478,9 @@ function Home() {
           <div><strong>{state.displayName}</strong><span>Student space</span></div>
           <MoreHorizontal size={18} className="muted-icon" />
         </div>
-      </aside>
+      </motion.aside>
 
-      <main className="main-content">
+      <motion.main className="main-content" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .28, duration: .75, ease: [0.22, 1, 0.36, 1] }}>
         <header className="topbar">
           <div>
             <div className="eyebrow">{currentDate}</div>
@@ -475,16 +498,16 @@ function Home() {
 
         {view === 'overview' && (
           <>
-            <section className="welcome-row">
+            <motion.section className="welcome-row" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .45, duration: .7, ease: [0.22, 1, 0.36, 1] }}>
               <div>
                 <p className="soft-intro">A quiet place to do the next right thing.</p>
                 <h2>Let’s tend to your focus.</h2>
               </div>
               <div className="date-chip"><CalendarDays size={16} /><span>This week</span><ChevronRight size={15} /></div>
-            </section>
+            </motion.section>
 
             <section className="dashboard-grid">
-              <div className="panel focus-panel" id="focus-card">
+              <motion.div className="panel focus-panel" id="focus-card" initial={{ opacity: 0, y: 28, scale: .985 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: .58, duration: .75, ease: [0.22, 1, 0.36, 1] }}>
                 <div className="panel-heading">
                   <div><span className="section-kicker">Focus garden</span><h3>One session at a time.</h3></div>
                   <span className="mode-badge"><span className="status-dot" />{state.mode}</span>
@@ -531,20 +554,20 @@ function Home() {
                     <button className="text-button" onClick={() => setView('tasks')}>See your full plan <ArrowRight size={15} /></button>
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
-              <div className="panel plant-panel">
+              <motion.div className="panel plant-panel" initial={{ opacity: 0, y: 34, scale: .97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: .72, duration: .85, ease: [0.22, 1, 0.36, 1] }}>
                 <div className="panel-heading">
                   <div><span className="section-kicker">Your living progress</span><h3>Keep growing.</h3></div>
                   <button className="circle-link" onClick={() => setView('history')} aria-label="View plant history"><ArrowRight size={16} /></button>
                 </div>
                 <PlantIllustration stage={stage} />
                 <div className="plant-stats"><span><strong>{state.xp}</strong> XP</span><span><strong>{state.streak}</strong> days</span><span><strong>{state.sessions}</strong> sessions</span></div>
-              </div>
+              </motion.div>
             </section>
 
             <section className="lower-grid">
-              <div className="panel pages-panel">
+               <motion.div className="panel pages-panel" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .87, duration: .7, ease: [0.22, 1, 0.36, 1] }}>
                 <div className="panel-heading">
                   <div><span className="section-kicker">Today’s pages</span><h3>{state.todayPages} of {state.todayGoal} completed</h3></div>
                   <Target size={21} className="heading-icon" />
@@ -552,23 +575,23 @@ function Home() {
                 <div className="large-progress"><span style={{ width: `${todayProgress}%` }} /></div>
                 <div className="progress-foot"><span>{todayProgress}% of today’s goal</span><span>{state.todayGoal - state.todayPages > 0 ? `${state.todayGoal - state.todayPages} to go` : 'Goal complete'}</span></div>
                 <div className="page-dots">{Array.from({ length: state.todayGoal }).map((_, index) => <span key={index} className={index < state.todayPages ? 'filled' : ''} />)}</div>
-              </div>
-              <div className="panel distraction-panel">
+               </motion.div>
+               <motion.div className="panel distraction-panel" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .98, duration: .7, ease: [0.22, 1, 0.36, 1] }}>
                 <div className="panel-heading"><div><span className="section-kicker">Stay honest</span><h3>Mind wandered?</h3></div><CircleHelp size={20} className="heading-icon" /></div>
                 <p className="panel-description">Tap what pulled you away. Noticing is already a way back.</p>
                 <div className="distraction-actions">
                   <button onClick={() => recordDistraction('Tired')}><span>Tired / hungry</span><Clock3 size={15} /></button>
                   <button onClick={() => recordDistraction('Bored')}><span>Bored</span><Minus size={15} /></button>
                   <button onClick={() => recordDistraction('Stuck')}><span>Hard concept</span><TriangleAlert size={15} /></button>
-                </div>
+                 </div>
                 <div className="distraction-summary"><span><strong>{state.distractions}</strong> distractions today</span><span><strong>{state.minutesLost}m</strong> time lost</span></div>
-              </div>
+               </motion.div>
             </section>
 
-            <section className="section-block">
+             <motion.section className="section-block" initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.08, duration: .7, ease: [0.22, 1, 0.36, 1] }}>
               <div className="section-title-row"><div><span className="section-kicker">A gentle plan</span><h3>What’s on your desk</h3></div><button className="text-button" onClick={() => setView('tasks')}>Manage tasks <ArrowRight size={15} /></button></div>
               <TaskList tasks={state.tasks.slice(0, 3)} onAddPage={addPage} onToggle={toggleTask} onDelete={deleteTask} />
-            </section>
+             </motion.section>
           </>
         )}
 
@@ -595,7 +618,7 @@ function Home() {
         {view === 'settings' && (
           <section className="page-section"><div className="page-intro-row"><div><span className="section-kicker">Your space</span><h2>Make Study Focus yours.</h2><p>These preferences stay on this device.</p></div><Settings2 size={34} className="journal-mark" /></div><div className="panel settings-panel"><label>Your name<input value={state.displayName} onChange={(event) => setState(daySnapshot({ ...state, displayName: event.target.value }))} /></label><label>Daily page goal<input type="number" min="1" value={state.todayGoal} onChange={(event) => setState(daySnapshot({ ...state, todayGoal: Math.max(1, Number(event.target.value) || 1) }))} /></label><label>Default subject<select value={state.subject} onChange={(event) => setState({ ...state, subject: event.target.value })}>{state.subjects.map((subject) => <option key={subject}>{subject}</option>)}</select></label><label>Study mode<select value={state.mode} onChange={(event) => setState({ ...state, mode: event.target.value as StudyMode })}><option>Learning</option><option>Test prep</option><option>Normal study</option></select></label></div><div className="panel subject-manager"><div className="subject-manager-heading"><div><span className="section-kicker">Your library</span><h3>Your subjects</h3><p>Create the subjects that match your life and your study track.</p></div><BookOpen size={22} /></div><div className="subject-chips">{state.subjects.map((subject, index) => <motion.div layout key={subject} className="subject-chip"><span className={`subject-swatch swatch-${index % 5}`} />{subject}<button onClick={() => removeSubject(subject)} aria-label={`Remove ${subject}`}><X size={13} /></button></motion.div>)}</div><div className="subject-add-row"><input value={newSubject} onChange={(event) => setNewSubject(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && addSubject()} placeholder="e.g. Literature, Physics, Art history" /><button className="primary-button compact" onClick={addSubject}><Plus size={15} /> Add subject</button></div></div></section>
         )}
-      </main>
+      </motion.main>
 
       {breakReady && <div className="break-overlay"><div className="break-modal"><div className="break-icon"><Coffee size={25} /></div><span className="section-kicker">A reward for showing up</span><h2>Your 10-minute break is ready.</h2><p>You finished a meaningful piece of your plan. Step away, breathe, and come back when you’re ready.</p><div className="break-actions"><button className="secondary-button" onClick={() => setBreakReady(false)}>Not now</button><button className="primary-button" onClick={() => { setBreakReady(false); setNotice('Break started. Enjoy your reset.'); }}>Start break <ArrowRight size={15} /></button></div></div></div>}
     </div>
@@ -603,20 +626,20 @@ function Home() {
 }
 
 function NavButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: ReactNode; label: string }) {
-  return <button className={`nav-button ${active ? 'active' : ''}`} onClick={onClick}>{icon}<span>{label}</span>{active && <span className="nav-active-dot" />}</button>;
+  return <motion.button className={`nav-button ${active ? 'active' : ''}`} onClick={onClick} whileHover={{ x: 4 }} whileTap={{ scale: .96 }}>{icon}<span>{label}</span>{active && <span className="nav-active-dot" />}</motion.button>;
 }
 
 function TaskList({ tasks, onAddPage, onToggle, onDelete }: { tasks: StudyTask[]; onAddPage: (id: string) => void; onToggle: (id: string) => void; onDelete: (id: string) => void }) {
   return (
     <div className="task-list">
-      {tasks.map((task) => (
-        <div className={`task-row ${task.completed ? 'is-complete' : ''}`} key={task.id}>
+      {tasks.map((task, index) => (
+        <motion.div className={`task-row ${task.completed ? 'is-complete' : ''}`} key={task.id} initial={{ opacity: 0, x: -14 }} animate={{ opacity: task.completed ? .62 : 1, x: 0 }} transition={{ delay: index * .08, duration: .45, ease: [0.22, 1, 0.36, 1] }} whileHover={{ x: 4 }}>
           <button className={`task-check ${task.completed ? 'checked' : ''}`} onClick={() => onToggle(task.id)} aria-label={`Mark ${task.title} ${task.completed ? 'incomplete' : 'complete'}`}>{task.completed && <Check size={14} />}</button>
           <div className="task-main"><strong>{task.title}</strong><div><span className="subject-tag">{task.subject}</span><span className="task-type">{task.kind}</span></div></div>
           <div className="task-pages"><div className="tiny-progress"><span style={{ width: `${(task.completedPages / task.pages) * 100}%` }} /></div><span>{task.completedPages}/{task.pages} pages</span></div>
           <button className="page-plus" onClick={() => onAddPage(task.id)} disabled={task.completed}><Plus size={14} /> <span>page</span></button>
           <IconButton label="Delete task" className="delete-button" onClick={() => onDelete(task.id)}><Trash2 size={15} /></IconButton>
-        </div>
+        </motion.div>
       ))}
       {tasks.length === 0 && <div className="empty-state"><Sprout size={24} /><strong>Your plan is clear.</strong><span>Add a task when you’re ready for the next chapter.</span></div>}
     </div>
