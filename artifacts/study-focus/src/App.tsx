@@ -214,6 +214,7 @@ function IconButton({
 function PlantIllustration({ stage, small = false }: { stage: number; small?: boolean }) {
   const size = small ? 116 : 220;
   const leaves = Math.max(0, stage - 2);
+  const bloom = stage >= 4;
   return (
     <motion.div
       className={`plant-art ${small ? 'plant-art-small' : ''}`}
@@ -235,31 +236,96 @@ function PlantIllustration({ stage, small = false }: { stage: number; small?: bo
         animate={{ y: [0, -4, 0], rotate: [0, 0.7, 0] }}
         transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
       >
-        <ellipse cx="110" cy="190" rx="72" ry="16" fill="rgba(31, 46, 32, .18)" />
-        <path d="M51 182 C68 166 82 158 110 158 C138 158 153 166 169 182 Z" fill="#70523c" />
-        <path d="M60 178 C81 170 140 170 160 178 C151 193 69 193 60 178Z" fill="#8f6b4b" />
-        <path d="M110 170 C110 143 110 119 110 78" stroke={stage === 1 ? '#aa8759' : '#537657'} strokeWidth="7" strokeLinecap="round" />
-        {stage === 1 && <motion.circle cx="110" cy="167" r="12" fill="#d09a58" animate={{ scale: [1, 1.12, 1] }} transition={{ duration: 2.5, repeat: Infinity }} />}
-        {stage >= 2 && (
-          <>
-            <motion.path d="M108 137 C86 133 76 122 78 110 C94 109 106 118 110 132Z" fill="#6f966f" initial={{ scale: 0, transformOrigin: '110px 132px' }} animate={{ scale: 1 }} transition={{ delay: 0.2, duration: 0.7 }} />
-            <motion.path d="M112 119 C130 112 143 101 142 89 C126 90 114 99 111 113Z" fill="#86a883" initial={{ scale: 0, transformOrigin: '111px 113px' }} animate={{ scale: 1 }} transition={{ delay: 0.32, duration: 0.7 }} />
-          </>
-        )}
-        {leaves >= 1 && <motion.path d="M109 101 C89 96 77 84 80 72 C98 74 108 84 111 96Z" fill="#6a936d" initial={{ scale: 0, transformOrigin: '111px 96px' }} animate={{ scale: 1 }} transition={{ delay: 0.46, duration: 0.7 }} />}
-        {leaves >= 2 && <motion.path d="M112 88 C132 82 146 70 144 58 C127 60 115 70 111 81Z" fill="#9ab78b" initial={{ scale: 0, transformOrigin: '111px 81px' }} animate={{ scale: 1 }} transition={{ delay: 0.58, duration: 0.7 }} />}
-        {stage >= 4 && (
-          <>
-            <motion.g initial={{ scale: 0, transformOrigin: '110px 68px' }} animate={{ scale: 1 }} transition={{ delay: 0.72, type: 'spring', stiffness: 160, damping: 12 }}>
-              <circle cx="110" cy="68" r="16" fill="#d99e64" />
-              <circle cx="110" cy="68" r="8" fill="#f2d39a" />
-              <circle cx="96" cy="65" r="10" fill="#bd7e62" opacity=".9" />
-              <circle cx="124" cy="65" r="10" fill="#bd7e62" opacity=".9" />
-              <circle cx="110" cy="53" r="10" fill="#c8876e" opacity=".9" />
+        <defs>
+          <linearGradient id="plant-stem-gradient" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#b1c995" />
+            <stop offset=".45" stopColor="#64835e" />
+            <stop offset="1" stopColor="#334d3a" />
+          </linearGradient>
+          <linearGradient id="plant-leaf-gradient" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#b5cc98" />
+            <stop offset=".55" stopColor="#709466" />
+            <stop offset="1" stopColor="#38533d" />
+          </linearGradient>
+          <linearGradient id="plant-leaf-deep" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#8eae7b" />
+            <stop offset="1" stopColor="#3e6048" />
+          </linearGradient>
+          <radialGradient id="plant-soil-gradient">
+            <stop offset="0" stopColor="#b58a5b" />
+            <stop offset=".72" stopColor="#76533c" />
+            <stop offset="1" stopColor="#4c392d" />
+          </radialGradient>
+          <radialGradient id="plant-flower-center">
+            <stop offset="0" stopColor="#ffe6a1" />
+            <stop offset=".55" stopColor="#d89d4b" />
+            <stop offset="1" stopColor="#9a623d" />
+          </radialGradient>
+        </defs>
+        <ellipse cx="110" cy="195" rx="76" ry="13" fill="rgba(5, 12, 7, .32)" />
+        <path d="M47 181 C57 166 76 158 110 157 C144 158 163 166 173 181 C164 193 57 193 47 181Z" fill="#3a3029" opacity=".72" />
+        <path d="M54 178 C68 165 89 160 110 160 C131 160 152 165 166 178 C158 190 62 190 54 178Z" fill="url(#plant-soil-gradient)" />
+        <path d="M63 177 C75 169 92 166 110 166 C128 166 145 169 157 177" fill="none" stroke="#c09967" strokeWidth="1.5" opacity=".5" />
+        <circle cx="80" cy="177" r="2.5" fill="#5a4231" opacity=".8" />
+        <circle cx="139" cy="174" r="2" fill="#5a4231" opacity=".8" />
+        <circle cx="119" cy="181" r="1.6" fill="#d0a674" opacity=".7" />
+        <motion.g
+          animate={{ rotate: [-1.2, 1.2, -1.2] }}
+          transition={{ duration: 4.8, repeat: Infinity, ease: 'easeInOut' }}
+          style={{ transformOrigin: '110px 170px' }}
+        >
+          <path d="M110 169 C108 143 111 114 111 78" fill="none" stroke="#273b2d" strokeWidth="9" strokeLinecap="round" opacity=".55" />
+          <path d="M109 170 C108 143 111 114 111 78" fill="none" stroke="url(#plant-stem-gradient)" strokeWidth="6" strokeLinecap="round" />
+          <path d="M110 135 C98 124 91 113 86 101" fill="none" stroke="#6f9668" strokeWidth="3" strokeLinecap="round" />
+          <path d="M111 116 C123 105 130 93 136 80" fill="none" stroke="#789d6d" strokeWidth="3" strokeLinecap="round" />
+          {stage === 1 && <motion.ellipse cx="110" cy="164" rx="11" ry="8" fill="#d8a45d" animate={{ scale: [1, 1.12, 1] }} transition={{ duration: 2.5, repeat: Infinity }} />}
+          {stage >= 2 && (
+            <>
+              <motion.g initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: .2, duration: .7, type: 'spring' }} style={{ transformOrigin: '91px 119px' }}>
+                <path d="M108 137 C88 136 73 126 72 111 C88 106 105 116 111 132 C103 127 92 121 79 116" fill="url(#plant-leaf-gradient)" stroke="#b3c996" strokeOpacity=".2" strokeWidth="1" />
+                <path d="M105 132 C94 124 85 119 77 114" fill="none" stroke="#c4d6a3" strokeWidth="1.2" opacity=".62" />
+              </motion.g>
+              <motion.g initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: .32, duration: .7, type: 'spring' }} style={{ transformOrigin: '130px 101px' }}>
+                <path d="M112 120 C126 104 140 98 151 101 C146 116 133 125 113 125 C124 118 134 110 144 104" fill="url(#plant-leaf-deep)" stroke="#bdd19e" strokeOpacity=".18" strokeWidth="1" />
+                <path d="M117 120 C128 114 137 108 145 103" fill="none" stroke="#c7d9aa" strokeWidth="1.2" opacity=".58" />
+              </motion.g>
+            </>
+          )}
+          {leaves >= 1 && (
+            <motion.g initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: .46, duration: .7, type: 'spring' }} style={{ transformOrigin: '92px 87px' }}>
+              <path d="M110 103 C91 98 76 87 77 71 C96 70 108 82 112 98 C101 89 91 81 81 75" fill="url(#plant-leaf-gradient)" />
+              <path d="M108 98 C98 88 89 80 80 74" fill="none" stroke="#d0dda9" strokeWidth="1.2" opacity=".6" />
             </motion.g>
-          </>
+          )}
+          {leaves >= 2 && (
+            <motion.g initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: .58, duration: .7, type: 'spring' }} style={{ transformOrigin: '132px 72px' }}>
+              <path d="M112 91 C126 75 141 67 153 71 C150 87 137 98 114 99 C127 91 138 81 148 73" fill="url(#plant-leaf-deep)" />
+              <path d="M116 94 C128 84 138 78 149 72" fill="none" stroke="#d1e0ae" strokeWidth="1.2" opacity=".58" />
+            </motion.g>
+          )}
+          {bloom && (
+            <motion.g initial={{ scale: 0, opacity: 0 }} animate={{ scale: [0, 1.12, 1], opacity: 1 }} transition={{ delay: .72, duration: .9, type: 'spring', stiffness: 150, damping: 13 }} style={{ transformOrigin: '111px 61px' }}>
+              <ellipse cx="111" cy="44" rx="10" ry="24" fill="#bd826f" transform="rotate(0 111 61)" />
+              <ellipse cx="111" cy="77" rx="10" ry="24" fill="#d29575" transform="rotate(180 111 61)" />
+              <ellipse cx="94" cy="61" rx="10" ry="23" fill="#c27d6e" transform="rotate(-90 94 61)" />
+              <ellipse cx="128" cy="61" rx="10" ry="23" fill="#d7a078" transform="rotate(90 128 61)" />
+              <ellipse cx="99" cy="49" rx="9" ry="20" fill="#d99b76" transform="rotate(-45 99 49)" />
+              <ellipse cx="123" cy="49" rx="9" ry="20" fill="#b87368" transform="rotate(45 123 49)" />
+              <ellipse cx="99" cy="73" rx="9" ry="20" fill="#b96f63" transform="rotate(45 99 73)" />
+              <ellipse cx="123" cy="73" rx="9" ry="20" fill="#dca178" transform="rotate(-45 123 73)" />
+              <circle cx="111" cy="61" r="14" fill="url(#plant-flower-center)" />
+              <circle cx="106" cy="57" r="2" fill="#ffe9ad" /><circle cx="116" cy="57" r="2" fill="#ffe9ad" />
+              <circle cx="106" cy="66" r="2" fill="#ffe9ad" /><circle cx="116" cy="66" r="2" fill="#ffe9ad" />
+              <circle cx="111" cy="61" r="3" fill="#8e5d39" />
+            </motion.g>
+          )}
+        </motion.g>
+        {bloom && (
+          <motion.g animate={{ rotate: [0, 5, 0], opacity: [.45, 1, .45] }} transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }} style={{ transformOrigin: '111px 61px' }}>
+            <path d="M82 51 L85 54 M141 47 L144 44 M137 86 L141 88 M78 86 L75 89" stroke="#e1bb6b" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="88" cy="39" r="2" fill="#e1bb6b" /><circle cx="138" cy="31" r="1.7" fill="#a9c58c" />
+          </motion.g>
         )}
-        {stage >= 5 && <motion.path d="M110 39 L114 27 L120 39 L132 41 L121 47 L124 59 L110 52 L96 59 L99 47 L88 41 L100 39 L106 27Z" fill="#e6b65c" initial={{ scale: 0, transformOrigin: '110px 43px' }} animate={{ scale: [0, 1.15, 1] }} transition={{ delay: 0.9, duration: 0.9 }} />}
       </motion.svg>
       <div className="plant-stage-label">
         {stage === 1 ? 'Buried seed' : stage === 2 ? 'Little sprout' : stage === 3 ? 'Growing plant' : stage === 4 ? 'Budding flower' : 'Full bloom'}
@@ -271,7 +337,7 @@ function PlantIllustration({ stage, small = false }: { stage: number; small?: bo
 function Home() {
   const [view, setView] = useState<View>('overview');
   const [state, setState] = useState<StudyState>(() => readState());
-  const [homecoming, setHomecoming] = useState(true);
+  const [homecoming, setHomecoming] = useState(() => !new URLSearchParams(window.location.search).has('skip-intro'));
   const [notice, setNotice] = useState('');
   const [breakReady, setBreakReady] = useState(false);
   const [showTaskForm, setShowTaskForm] = useState(false);
