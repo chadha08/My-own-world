@@ -1,0 +1,92 @@
+Act as a Principal Full-Stack Engineer and World-Class UI/UX Designer. Build a premium, production-ready SaaS web application worth $1000 that is fully responsive (fluid desktop, tablet, and mobile layouts with adaptive navigation).
+
+### 🎨 DESIGN SYSTEM & THEME
+- Theme Concept: "Botanical / Earthy Military" — clean, calm, aesthetic, and highly engaging.
+- Color Palette:
+  - Primary / Backgrounds: Deep Forest Military Green (`#1b2d23`, `#122018`), Earthy Dark Olive, Warm Deep Brown (`#3e2723`, `#2d1e18`).
+  - Text & Accents: Cream Soft White (`#f7f4ef`, `#eae3d2`), Warm Floral Cream (`#fffdfa`).
+  - Highlights & Statuses: Soft Sage Green (`#88a087`), Muted Amber, Floral Accents, Pale/Dried Brown for inactive states.
+- UI Styling: Premium Glassmorphism elements, sleek subtle borders, smooth rounded corners, smooth micro-interactions, Framer Motion animations.
+
+---
+
+### 🌱 CORE FEATURE: DYNAMIC DIGITAL PLANT & STREAK EVOLUTION SYSTEM
+Include a central, highly aesthetic interactive visual component representing the user's focus journey:
+
+1. **Evolution (Streak & XP Growth):**
+   - Starts as a small buried seed in soil (`Day 0 / Low XP`).
+   - As **Day Streaks** and **XP** increase, the plant gradually grows stage-by-stage:
+     - `Stage 1`: Buried Seed
+     - `Stage 2`: Small Sprout / Little Stem
+     - `Stage 3`: Growing Plant with Leaves
+     - `Stage 4`: Budding Flower
+     - `Stage 5+`: Full Blooming Floral Masterpiece
+   - Smooth particle/glowing animations whenever XP is earned or streak levels up.
+
+2. **Neglect & Drying (Loss of Regularity / Missed Days):**
+   - If the user misses a planned day in the calendar or breaks their study streak:
+     - The plant dynamically changes visually: it turns pale, brownish/grey, and looks withered/wilted/dried.
+     - A gentle motivational alert appears suggesting a recovery session.
+
+3. **Revival & Rebirth (Consistency & Organized Calendar):**
+   - As soon as the user gets back on track, completes scheduled calendar tasks, and sticks to their timetable:
+     - The plant gracefully **revives**, turns vibrant green again, blooms, and resumes its growth!
+
+---
+
+### ⚙️ BACKEND & ARCHITECTURE
+- Robust, bug-free full-stack architecture (React/Next.js or Vite+React frontend, Node.js/Express backend, SQLite/PostgreSQL database via Prisma/Drizzle).
+- Persistent state management so user stats, streaks, plant stage, logs, and tasks are saved securely.
+
+---
+
+### 🚀 ALL ADDITIONAL CORE FEATURES (Extracted from Hand-written Notes):
+
+1. **Gamified Task & Reward System:**
+   - Input total pages/tasks.
+   - Tapping "+1 page completed" triggers XP popup and gives water/nutrients to the plant.
+   - Session conclusion unlocks XP gifts and rewards.
+
+2. **Custom Pomodoro Timer:**
+   - Adjustable timer duration (Work/Pause).
+   - Play/Pause/Reset controls with an animated blooming progress circle.
+
+3. **Gamification, Streaks & Metrics:**
+   - **Day Streak Counter:** Tracks consecutive active days (directly fuels plant growth).
+   - **Daily Score & XP System:** Earn XP by completing tasks and study sessions.
+
+4. **Task & Subject Management:**
+   - Categorized Tasks: Homeworks, Projects, Upcoming Tests.
+   - Subject Selector: Dropdown to select subject focus.
+   - **Study / Learning Mode Toggle:** Switch between "Homework", "Test Prep", and "Normal Study".
+
+5. **Interactive Calendar & Planning:**
+   - Monthly & weekly calendar display.
+   - Event categorization: Tests, Projects, Holidays.
+   - Keeps track of compliance to trigger plant revival when schedule is respected.
+
+6. **Weekly Work Rating & Reflection:**
+   - End-of-week self-rating system with progress trends.
+
+7. **Personal Journal / Diary:**
+   - A minimalist, cozy diary section for daily thoughts and reflections.
+
+8. **Task List & Checklist:**
+   - Todo checklist with smooth cross-out animations.
+
+9. **Smart Distraction & Focus Assistant ("When I get distracted..."):**
+   - **Distraction Triggers:** Quick buttons for ("Tired / Hungry", "Bored", "Hard Concept / Stuck").
+   - **Intervention Flow:**
+     - If "Tired/Hungry/Bored" -> Automatically triggers a break recommendation.
+     - If "Stuck / Hard concept" -> Prompts user to make a guess or break down the task.
+   - **Distraction Counter & Time-Lost Analytics:** Tap "Oups!" when distracted. End-of-day dashboard shows total time lost and frequency.
+   - **Session Re-alignment:** End-of-session prompt: "Make a guess for what you are going to do in place of 'When do I start?'".
+
+---
+
+### 📱 RESPONSIVENESS & FINISH
+- Mobile: Touch-optimized, bottom navigation bar, collapsible side panels.
+- Desktop: Clean multi-column layout with sidebar.
+- Animations: Micro-interactions, plant growth/wilting transitions, floral particle celebration FX.
+
+Build the entire app completely, ensure zero console errors, set up initial sample data, and make sure all features and visual states are 100% connected and fully functional.
