@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Study Focus"
+description = "A calm study companion that helps students plan today, start focused sessions, and build consistent study momentum without feeling overwhelming."
+version = "1.0.0"
+id = "artifacts/study-focus"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24067
+
+[services.development]
+run = "pnpm --filter @workspace/study-focus run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/study-focus", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/study-focus/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24067"
+BASE_PATH = "/"
