@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity,
   ArrowRight,
@@ -65,6 +66,7 @@ type PlantSnapshot = {
 
 type StudyState = {
   tasks: StudyTask[];
+  subjects: string[];
   xp: number;
   streak: number;
   sessions: number;
@@ -130,6 +132,7 @@ const defaultHistory: PlantSnapshot[] = [
 
 const initialState: StudyState = {
   tasks: defaultTasks,
+  subjects: ['Biology', 'Mathematics', 'History', 'Languages'],
   xp: 320,
   streak: 6,
   sessions: 12,
@@ -211,37 +214,56 @@ function PlantIllustration({ stage, small = false }: { stage: number; small?: bo
   const size = small ? 116 : 220;
   const leaves = Math.max(0, stage - 2);
   return (
-    <div className={`plant-art ${small ? 'plant-art-small' : ''}`} aria-label={`Plant growth stage ${stage}`}>
-      <div className="plant-glow" />
-      <svg viewBox="0 0 220 220" width={size} height={size} role="img">
+    <motion.div
+      className={`plant-art ${small ? 'plant-art-small' : ''}`}
+      aria-label={`Plant growth stage ${stage}`}
+      initial={{ opacity: 0, y: 12, scale: 0.92 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <motion.div
+        className="plant-glow"
+        animate={{ scale: [0.92, 1.12, 0.92], opacity: [0.35, 0.62, 0.35] }}
+        transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <motion.svg
+        viewBox="0 0 220 220"
+        width={size}
+        height={size}
+        role="img"
+        animate={{ y: [0, -4, 0], rotate: [0, 0.7, 0] }}
+        transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+      >
         <ellipse cx="110" cy="190" rx="72" ry="16" fill="rgba(31, 46, 32, .18)" />
         <path d="M51 182 C68 166 82 158 110 158 C138 158 153 166 169 182 Z" fill="#70523c" />
         <path d="M60 178 C81 170 140 170 160 178 C151 193 69 193 60 178Z" fill="#8f6b4b" />
         <path d="M110 170 C110 143 110 119 110 78" stroke={stage === 1 ? '#aa8759' : '#537657'} strokeWidth="7" strokeLinecap="round" />
-        {stage === 1 && <circle cx="110" cy="167" r="12" fill="#d09a58" />}
+        {stage === 1 && <motion.circle cx="110" cy="167" r="12" fill="#d09a58" animate={{ scale: [1, 1.12, 1] }} transition={{ duration: 2.5, repeat: Infinity }} />}
         {stage >= 2 && (
           <>
-            <path d="M108 137 C86 133 76 122 78 110 C94 109 106 118 110 132Z" fill="#6f966f" />
-            <path d="M112 119 C130 112 143 101 142 89 C126 90 114 99 111 113Z" fill="#86a883" />
+            <motion.path d="M108 137 C86 133 76 122 78 110 C94 109 106 118 110 132Z" fill="#6f966f" initial={{ scale: 0, transformOrigin: '110px 132px' }} animate={{ scale: 1 }} transition={{ delay: 0.2, duration: 0.7 }} />
+            <motion.path d="M112 119 C130 112 143 101 142 89 C126 90 114 99 111 113Z" fill="#86a883" initial={{ scale: 0, transformOrigin: '111px 113px' }} animate={{ scale: 1 }} transition={{ delay: 0.32, duration: 0.7 }} />
           </>
         )}
-        {leaves >= 1 && <path d="M109 101 C89 96 77 84 80 72 C98 74 108 84 111 96Z" fill="#6a936d" />}
-        {leaves >= 2 && <path d="M112 88 C132 82 146 70 144 58 C127 60 115 70 111 81Z" fill="#9ab78b" />}
+        {leaves >= 1 && <motion.path d="M109 101 C89 96 77 84 80 72 C98 74 108 84 111 96Z" fill="#6a936d" initial={{ scale: 0, transformOrigin: '111px 96px' }} animate={{ scale: 1 }} transition={{ delay: 0.46, duration: 0.7 }} />}
+        {leaves >= 2 && <motion.path d="M112 88 C132 82 146 70 144 58 C127 60 115 70 111 81Z" fill="#9ab78b" initial={{ scale: 0, transformOrigin: '111px 81px' }} animate={{ scale: 1 }} transition={{ delay: 0.58, duration: 0.7 }} />}
         {stage >= 4 && (
           <>
-            <circle cx="110" cy="68" r="16" fill="#d99e64" />
-            <circle cx="110" cy="68" r="8" fill="#f2d39a" />
-            <circle cx="96" cy="65" r="10" fill="#bd7e62" opacity=".9" />
-            <circle cx="124" cy="65" r="10" fill="#bd7e62" opacity=".9" />
-            <circle cx="110" cy="53" r="10" fill="#c8876e" opacity=".9" />
+            <motion.g initial={{ scale: 0, transformOrigin: '110px 68px' }} animate={{ scale: 1 }} transition={{ delay: 0.72, type: 'spring', stiffness: 160, damping: 12 }}>
+              <circle cx="110" cy="68" r="16" fill="#d99e64" />
+              <circle cx="110" cy="68" r="8" fill="#f2d39a" />
+              <circle cx="96" cy="65" r="10" fill="#bd7e62" opacity=".9" />
+              <circle cx="124" cy="65" r="10" fill="#bd7e62" opacity=".9" />
+              <circle cx="110" cy="53" r="10" fill="#c8876e" opacity=".9" />
+            </motion.g>
           </>
         )}
-        {stage >= 5 && <path d="M110 39 L114 27 L120 39 L132 41 L121 47 L124 59 L110 52 L96 59 L99 47 L88 41 L100 39 L106 27Z" fill="#e6b65c" />}
-      </svg>
+        {stage >= 5 && <motion.path d="M110 39 L114 27 L120 39 L132 41 L121 47 L124 59 L110 52 L96 59 L99 47 L88 41 L100 39 L106 27Z" fill="#e6b65c" initial={{ scale: 0, transformOrigin: '110px 43px' }} animate={{ scale: [0, 1.15, 1] }} transition={{ delay: 0.9, duration: 0.9 }} />}
+      </motion.svg>
       <div className="plant-stage-label">
         {stage === 1 ? 'Buried seed' : stage === 2 ? 'Little sprout' : stage === 3 ? 'Growing plant' : stage === 4 ? 'Budding flower' : 'Full bloom'}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -256,6 +278,8 @@ function Home() {
   const [newTaskSubject, setNewTaskSubject] = useState('Biology');
   const [newTaskKind, setNewTaskKind] = useState<StudyTask['kind']>('Homework');
   const [reflection, setReflection] = useState('');
+  const [newSubject, setNewSubject] = useState('');
+  const [celebration, setCelebration] = useState(false);
 
   const stage = getPlantStage(state.xp, state.streak);
   const incompleteTasks = state.tasks.filter((task) => !task.completed);
@@ -327,6 +351,8 @@ function Home() {
       { ...state, tasks: nextTasks, todayPages: state.todayPages + 1, xp: state.xp + 10 },
       completed ? `${task.title} complete. A 10 minute break is ready.` : '+1 page logged. You earned 10 XP.',
     );
+    setCelebration(true);
+    window.setTimeout(() => setCelebration(false), 1500);
     if (completed) setBreakReady(true);
   };
 
@@ -358,6 +384,27 @@ function Home() {
     setNewTaskTitle('');
     setNewTaskPages('5');
     setShowTaskForm(false);
+  };
+
+  const addSubject = () => {
+    const subject = newSubject.trim();
+    if (!subject) return;
+    if (state.subjects.some((item) => item.toLowerCase() === subject.toLowerCase())) {
+      setNotice('That subject is already in your list.');
+      return;
+    }
+    commit({ ...state, subjects: [...state.subjects, subject], subject }, `${subject} added to your subjects.`);
+    setNewSubject('');
+  };
+
+  const removeSubject = (subject: string) => {
+    if (state.subjects.length <= 1) {
+      setNotice('Keep at least one subject in your study space.');
+      return;
+    }
+    const subjects = state.subjects.filter((item) => item !== subject);
+    commit({ ...state, subjects, subject: state.subject === subject ? subjects[0] : state.subject }, `${subject} removed.`);
+    if (newTaskSubject === subject) setNewTaskSubject(subjects[0]);
   };
 
   const recordDistraction = (reason: string) => {
@@ -442,6 +489,13 @@ function Home() {
                   <div><span className="section-kicker">Focus garden</span><h3>One session at a time.</h3></div>
                   <span className="mode-badge"><span className="status-dot" />{state.mode}</span>
                 </div>
+                <AnimatePresence>
+                  {celebration && (
+                    <motion.div className="xp-burst" initial={{ opacity: 0, y: 18, scale: .7 }} animate={{ opacity: 1, y: -18, scale: 1 }} exit={{ opacity: 0, y: -56, scale: 1.15 }} transition={{ duration: .8 }}>
+                      <Sparkles size={14} /> +10 XP
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 <div className="focus-layout">
                   <div className="timer-wrap">
                     <div className={`timer-ring ${state.timerRunning ? 'is-running' : ''}`} style={{ '--timer-progress': `${100 - (state.remainingSeconds / (state.selectedMinutes * 60)) * 100}%` } as React.CSSProperties}>
@@ -521,7 +575,7 @@ function Home() {
         {view === 'tasks' && (
           <section className="page-section">
             <div className="page-intro-row"><div><span className="section-kicker">Tasks & subjects</span><h2>Make the next step visible.</h2><p>Turn homework, projects, and upcoming tests into pages you can gently finish.</p></div><button className="primary-button" onClick={() => setShowTaskForm(!showTaskForm)}><Plus size={17} /> Add task</button></div>
-            {showTaskForm && <div className="panel task-form"><div className="form-header"><h3>New study task</h3><IconButton label="Close form" onClick={() => setShowTaskForm(false)}><X size={17} /></IconButton></div><div className="form-grid"><label>Task name<input value={newTaskTitle} onChange={(event) => setNewTaskTitle(event.target.value)} placeholder="e.g. Read chapter 5" /></label><label>Pages<input type="number" min="1" value={newTaskPages} onChange={(event) => setNewTaskPages(event.target.value)} /></label><label>Subject<select value={newTaskSubject} onChange={(event) => setNewTaskSubject(event.target.value)}><option>Biology</option><option>Mathematics</option><option>History</option><option>Languages</option></select></label><label>Type<select value={newTaskKind} onChange={(event) => setNewTaskKind(event.target.value as StudyTask['kind'])}><option>Homework</option><option>Project</option><option>Test</option></select></label></div><button className="primary-button" onClick={addTask}>Add to my plan <ArrowRight size={16} /></button></div>}
+            {showTaskForm && <div className="panel task-form"><div className="form-header"><h3>New study task</h3><IconButton label="Close form" onClick={() => setShowTaskForm(false)}><X size={17} /></IconButton></div><div className="form-grid"><label>Task name<input value={newTaskTitle} onChange={(event) => setNewTaskTitle(event.target.value)} placeholder="e.g. Read chapter 5" /></label><label>Pages<input type="number" min="1" value={newTaskPages} onChange={(event) => setNewTaskPages(event.target.value)} /></label><label>Subject<select value={newTaskSubject} onChange={(event) => setNewTaskSubject(event.target.value)}>{state.subjects.map((subject) => <option key={subject}>{subject}</option>)}</select></label><label>Type<select value={newTaskKind} onChange={(event) => setNewTaskKind(event.target.value as StudyTask['kind'])}><option>Homework</option><option>Project</option><option>Test</option></select></label></div><button className="primary-button" onClick={addTask}>Add to my plan <ArrowRight size={16} /></button></div>}
             <TaskList tasks={state.tasks} onAddPage={addPage} onToggle={toggleTask} onDelete={deleteTask} />
           </section>
         )}
@@ -539,7 +593,7 @@ function Home() {
         )}
 
         {view === 'settings' && (
-          <section className="page-section"><div className="page-intro-row"><div><span className="section-kicker">Your space</span><h2>Make Study Focus yours.</h2><p>These preferences stay on this device.</p></div><Settings2 size={34} className="journal-mark" /></div><div className="panel settings-panel"><label>Your name<input value={state.displayName} onChange={(event) => setState(daySnapshot({ ...state, displayName: event.target.value }))} /></label><label>Daily page goal<input type="number" min="1" value={state.todayGoal} onChange={(event) => setState(daySnapshot({ ...state, todayGoal: Math.max(1, Number(event.target.value) || 1) }))} /></label><label>Default subject<select value={state.subject} onChange={(event) => setState({ ...state, subject: event.target.value })}><option>Biology</option><option>Mathematics</option><option>History</option><option>Languages</option></select></label><label>Study mode<select value={state.mode} onChange={(event) => setState({ ...state, mode: event.target.value as StudyMode })}><option>Learning</option><option>Test prep</option><option>Normal study</option></select></label></div></section>
+          <section className="page-section"><div className="page-intro-row"><div><span className="section-kicker">Your space</span><h2>Make Study Focus yours.</h2><p>These preferences stay on this device.</p></div><Settings2 size={34} className="journal-mark" /></div><div className="panel settings-panel"><label>Your name<input value={state.displayName} onChange={(event) => setState(daySnapshot({ ...state, displayName: event.target.value }))} /></label><label>Daily page goal<input type="number" min="1" value={state.todayGoal} onChange={(event) => setState(daySnapshot({ ...state, todayGoal: Math.max(1, Number(event.target.value) || 1) }))} /></label><label>Default subject<select value={state.subject} onChange={(event) => setState({ ...state, subject: event.target.value })}>{state.subjects.map((subject) => <option key={subject}>{subject}</option>)}</select></label><label>Study mode<select value={state.mode} onChange={(event) => setState({ ...state, mode: event.target.value as StudyMode })}><option>Learning</option><option>Test prep</option><option>Normal study</option></select></label></div><div className="panel subject-manager"><div className="subject-manager-heading"><div><span className="section-kicker">Your library</span><h3>Your subjects</h3><p>Create the subjects that match your life and your study track.</p></div><BookOpen size={22} /></div><div className="subject-chips">{state.subjects.map((subject, index) => <motion.div layout key={subject} className="subject-chip"><span className={`subject-swatch swatch-${index % 5}`} />{subject}<button onClick={() => removeSubject(subject)} aria-label={`Remove ${subject}`}><X size={13} /></button></motion.div>)}</div><div className="subject-add-row"><input value={newSubject} onChange={(event) => setNewSubject(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && addSubject()} placeholder="e.g. Literature, Physics, Art history" /><button className="primary-button compact" onClick={addSubject}><Plus size={15} /> Add subject</button></div></div></section>
         )}
       </main>
 
