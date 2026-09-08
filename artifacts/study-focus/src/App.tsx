@@ -282,22 +282,11 @@ function PlantIllustration({ stage, small = false }: { stage: number; small?: bo
         animate={{ scale: [0.92, 1.12, 0.92], opacity: [0.35, 0.62, 0.35] }}
         transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
       />
-      {stage === 1 && (
-        <motion.img
-          className="seed-photo"
-          src={`${import.meta.env.BASE_URL}seed-stage.png`}
-          alt="A seed beginning to sprout from rich soil"
-          initial={{ opacity: 0, scale: 0.88 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.12, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-        />
-      )}
       <motion.svg
         viewBox="0 0 220 220"
         width={size}
         height={size}
         role="img"
-        className={stage === 1 ? 'seed-svg-hidden' : ''}
         animate={{ y: [0, -4, 0], rotate: [0, 0.7, 0] }}
         transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
       >
