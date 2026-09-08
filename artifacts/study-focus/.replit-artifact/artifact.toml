@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "Study Focus"
+title = "My Own World"
 description = "A calm study companion that helps students plan today, start focused sessions, and build consistent study momentum without feeling overwhelming."
 version = "1.0.0"
 id = "artifacts/study-focus"

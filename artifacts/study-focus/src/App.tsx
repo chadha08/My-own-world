@@ -7,6 +7,7 @@ import {
   BarChart3,
   BookOpen,
   CalendarDays,
+  ChevronLeft,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -84,6 +85,8 @@ type StudyState = {
   subject: string;
   mode: StudyMode;
   journal: string;
+  calendarNotes: Record<string, string>;
+  diaryEntries: Record<string, string>;
   displayName: string;
   history: PlantSnapshot[];
   distractionRunning: boolean;
@@ -118,6 +121,37 @@ const dailyQuotes = [
   { text: 'Begin with care, then let rhythm do the rest.', author: 'Study Focus' },
 ];
 
+const weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+function localDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function monthLabel(date: Date) {
+  return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+function monthGrid(date: Date) {
+  const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
+  const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  const mondayOffset = (firstDay.getDay() + 6) % 7;
+  const cells: Array<Date | null> = Array.from({ length: mondayOffset }, () => null);
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    cells.push(new Date(date.getFullYear(), date.getMonth(), day));
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
+
+function shiftDateKey(key: string, offset: number) {
+  const date = new Date(`${key}T12:00:00`);
+  date.setDate(date.getDate() + offset);
+  return localDateKey(date);
+}
+
 const initialState: StudyState = {
   tasks: defaultTasks,
   subjects: ['Biology', 'Mathematics', 'History', 'Languages'],
@@ -137,6 +171,8 @@ const initialState: StudyState = {
   subject: 'Biology',
   mode: 'Learning',
   journal: '',
+  calendarNotes: {},
+  diaryEntries: {},
   displayName: 'Alex',
   history: defaultHistory,
   distractionRunning: false,
@@ -150,7 +186,12 @@ function readState(): StudyState {
   try {
     const saved = window.localStorage.getItem(storageKey);
     if (!saved) return initialState;
-    return { ...initialState, ...JSON.parse(saved) } as StudyState;
+    const parsed = JSON.parse(saved) as Partial<StudyState>;
+    return {
+      ...initialState,
+      ...parsed,
+      diaryEntries: parsed.diaryEntries ?? (parsed.journal ? { [localDateKey(new Date())]: parsed.journal } : {}),
+    } as StudyState;
   } catch {
     return initialState;
   }
@@ -352,11 +393,18 @@ function Home() {
   const [newSubject, setNewSubject] = useState('');
   const [celebration, setCelebration] = useState(false);
   const [clockNow, setClockNow] = useState(() => Date.now());
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date());
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState(() => localDateKey(new Date()));
+  const [calendarNoteDraft, setCalendarNoteDraft] = useState('');
+  const [diaryDate, setDiaryDate] = useState(() => localDateKey(new Date()));
+  const [diaryDraft, setDiaryDraft] = useState('');
   const breakCompletionNotified = useRef(false);
 
   const stage = getPlantStage(state.xp, state.streak);
   const incompleteTasks = state.tasks.filter((task) => !task.completed);
   const dailyQuote = dailyQuotes[new Date().getDay() % dailyQuotes.length];
+  const calendarCells = useMemo(() => monthGrid(calendarMonth), [calendarMonth]);
+  const todayKey = localDateKey(new Date());
   const activeDistractionSeconds = state.distractionRunning && state.distractionStartedAt
     ? Math.max(0, Math.floor((clockNow - state.distractionStartedAt) / 1000))
     : 0;
@@ -365,6 +413,14 @@ function Home() {
     const timeout = window.setTimeout(() => setHomecoming(false), 2100);
     return () => window.clearTimeout(timeout);
   }, []);
+
+  useEffect(() => {
+    setCalendarNoteDraft(state.calendarNotes?.[selectedCalendarDate] ?? '');
+  }, [selectedCalendarDate]);
+
+  useEffect(() => {
+    setDiaryDraft(state.diaryEntries?.[diaryDate] ?? '');
+  }, [diaryDate]);
 
   useEffect(() => {
     if (!state.distractionRunning) return undefined;
@@ -376,6 +432,7 @@ function Home() {
   const pagesTotal = state.tasks.reduce((sum, task) => sum + task.pages, 0);
   const todayProgress = Math.min(100, Math.round((state.todayPages / state.todayGoal) * 100));
   const currentDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const selectedDateLabel = new Date(`${selectedCalendarDate}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   const commit = (next: StudyState, message?: string) => {
     setState(daySnapshot(next));
@@ -539,6 +596,41 @@ function Home() {
     commit({ ...state, tasks: state.tasks.filter((task) => task.id !== taskId) }, 'Task removed.');
   };
 
+  const selectCalendarDate = (date: Date) => {
+    const key = localDateKey(date);
+    setSelectedCalendarDate(key);
+    setCalendarNoteDraft(state.calendarNotes?.[key] ?? '');
+  };
+
+  const moveCalendarMonth = (offset: number) => {
+    const nextMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + offset, 1);
+    setCalendarMonth(nextMonth);
+    const nextSelected = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
+    selectCalendarDate(nextSelected);
+  };
+
+  const saveCalendarNote = () => {
+    const calendarNotes = { ...(state.calendarNotes ?? {}) };
+    if (calendarNoteDraft.trim()) {
+      calendarNotes[selectedCalendarDate] = calendarNoteDraft.trim();
+    } else {
+      delete calendarNotes[selectedCalendarDate];
+    }
+    commit({ ...state, calendarNotes }, 'Day note saved to your monthly plan.');
+  };
+
+  const saveDiaryEntry = () => {
+    const diaryEntries = { ...(state.diaryEntries ?? {}) };
+    if (diaryDraft.trim()) {
+      diaryEntries[diaryDate] = diaryDraft.trim();
+    } else {
+      delete diaryEntries[diaryDate];
+    }
+    commit({ ...state, journal: diaryDraft, diaryEntries }, 'Diary entry saved.');
+  };
+
+  const diaryEntryDates = Object.keys(state.diaryEntries ?? {}).sort((a, b) => b.localeCompare(a));
+
   const editTask = (task: StudyTask) => {
     setEditingTaskId(task.id);
     setNewTaskTitle(task.title);
@@ -636,7 +728,7 @@ function Home() {
     overview: 'Good morning',
     tasks: 'Your study plan',
     history: 'Plant history',
-    journal: 'Study journal',
+    journal: 'Daily diary',
     settings: 'Preferences',
   }[view];
 
@@ -662,7 +754,7 @@ function Home() {
         <div className="brand-lockup">
           <div className="brand-mark"><Leaf size={18} /></div>
           <div>
-            <div className="brand-name">Study Focus</div>
+             <div className="brand-name">My Own World</div>
             <div className="brand-caption">grow your rhythm</div>
           </div>
         </div>
@@ -671,7 +763,7 @@ function Home() {
           <NavButton active={view === 'overview'} onClick={() => setView('overview')} icon={<BarChart3 size={17} />} label="Overview" />
           <NavButton active={view === 'tasks'} onClick={() => setView('tasks')} icon={<ListChecks size={17} />} label="My plan" />
           <NavButton active={view === 'history'} onClick={() => setView('history')} icon={<Flower2 size={17} />} label="Plant history" />
-          <NavButton active={view === 'journal'} onClick={() => setView('journal')} icon={<NotebookPen size={17} />} label="Journal" />
+          <NavButton active={view === 'journal'} onClick={() => setView('journal')} icon={<NotebookPen size={17} />} label="Daily diary" />
           <div className="nav-label nav-label-spaced">Personal</div>
           <NavButton active={view === 'settings'} onClick={() => setView('settings')} icon={<Settings2 size={17} />} label="Preferences" />
         </nav>
@@ -814,9 +906,36 @@ function Home() {
           </>
         )}
 
-        {view === 'tasks' && (
-          <section className="page-section">
-            <div className="page-intro-row"><div><span className="section-kicker">Tasks & subjects</span><h2>Make the next step visible.</h2><p>Turn homework, projects, and upcoming tests into pages you can gently finish.</p></div><button className="primary-button" onClick={() => { setEditingTaskId(null); setNewTaskTitle(''); setShowTaskForm(!showTaskForm); }}><Plus size={17} /> Add task</button></div>
+         {view === 'tasks' && (
+           <section className="page-section">
+             <div className="page-intro-row"><div><span className="section-kicker">My monthly plan</span><h2>Make space for every important day.</h2><p>Use this month as your calm home for exams, holidays, deadlines, and the small notes you do not want to lose.</p></div><button className="primary-button" onClick={() => { setEditingTaskId(null); setNewTaskTitle(''); setShowTaskForm(!showTaskForm); }}><Plus size={17} /> Add task</button></div>
+             <div className="calendar-layout">
+               <div className="panel calendar-panel">
+                 <div className="calendar-header">
+                   <div><span className="section-kicker">Monthly view</span><h3>{monthLabel(calendarMonth)}</h3></div>
+                   <div className="calendar-controls"><IconButton label="Previous month" onClick={() => moveCalendarMonth(-1)}><ChevronLeft size={17} /></IconButton><button className="today-button" onClick={() => { const now = new Date(); setCalendarMonth(now); selectCalendarDate(now); }}>Today</button><IconButton label="Next month" onClick={() => moveCalendarMonth(1)}><ChevronRight size={17} /></IconButton></div>
+                 </div>
+                 <div className="calendar-weekdays">{weekdayLabels.map((day) => <span key={day}>{day}</span>)}</div>
+                 <div className="calendar-grid">
+                   {calendarCells.map((date, index) => {
+                     if (!date) return <div className="calendar-cell calendar-cell-empty" key={`empty-${index}`} />;
+                     const key = localDateKey(date);
+                     const note = state.calendarNotes?.[key];
+                     const isToday = key === todayKey;
+                     const isSelected = key === selectedCalendarDate;
+                     return <button className={`calendar-cell ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''} ${note ? 'has-note' : ''}`} key={key} onClick={() => selectCalendarDate(date)}><span className="calendar-day-number">{date.getDate()}</span>{note ? <span className="calendar-note-preview">{note}</span> : <span className="calendar-note-placeholder">add note</span>}</button>;
+                   })}
+                 </div>
+                 <div className="calendar-legend"><span><i className="legend-dot today-dot" /> Today</span><span><i className="legend-dot note-dot" /> Has a note</span></div>
+               </div>
+               <div className="panel calendar-note-panel">
+                 <div className="calendar-note-heading"><div className="calendar-note-icon"><CalendarDays size={18} /></div><div><span className="section-kicker">Day note</span><h3>{selectedDateLabel}</h3></div></div>
+                 <p>Write anything that helps you remember the shape of this day.</p>
+                 <textarea value={calendarNoteDraft} onChange={(event) => setCalendarNoteDraft(event.target.value)} placeholder="Exam at 10:00, holiday, review chapter 4..." />
+                 <div className="calendar-note-footer"><span>{calendarNoteDraft.length} characters</span><button className="primary-button compact" onClick={saveCalendarNote}>Save note <Check size={14} /></button></div>
+                 {state.calendarNotes?.[selectedCalendarDate] && <button className="calendar-clear-button" onClick={() => { setCalendarNoteDraft(''); const calendarNotes = { ...(state.calendarNotes ?? {}) }; delete calendarNotes[selectedCalendarDate]; commit({ ...state, calendarNotes }, 'Day note removed.'); }}>Clear this note</button>}
+               </div>
+             </div>
             {showTaskForm && <div className="panel task-form"><div className="form-header"><h3>{editingTaskId ? 'Edit study task' : 'New study task'}</h3><IconButton label="Close form" onClick={() => { setShowTaskForm(false); setEditingTaskId(null); }}><X size={17} /></IconButton></div><div className="form-grid"><label>Task name<input value={newTaskTitle} onChange={(event) => setNewTaskTitle(event.target.value)} placeholder="e.g. Read chapter 5" /></label><label>Pages<input type="number" min="1" value={newTaskPages} onChange={(event) => setNewTaskPages(event.target.value)} /></label><label>Subject<select value={newTaskSubject} onChange={(event) => setNewTaskSubject(event.target.value)}>{state.subjects.map((subject) => <option key={subject}>{subject}</option>)}</select></label><label>Type<select value={newTaskKind} onChange={(event) => setNewTaskKind(event.target.value as StudyTask['kind'])}><option>Homework</option><option>Project</option><option>Test</option></select></label></div><button className="primary-button" onClick={saveTask}>{editingTaskId ? 'Save changes' : 'Add to my plan'} <ArrowRight size={16} /></button></div>}
              <TaskList tasks={state.tasks} onAddPage={addPage} onToggle={toggleTask} onDelete={deleteTask} onEdit={editTask} />
           </section>
@@ -831,7 +950,23 @@ function Home() {
         )}
 
         {view === 'journal' && (
-          <section className="page-section journal-page"><div className="page-intro-row"><div><span className="section-kicker">A place to think</span><h2>Small notes, honest progress.</h2><p>Write down what you noticed today—about your studies or yourself.</p></div><NotebookPen size={34} className="journal-mark" /></div><div className="journal-layout"><div className="panel journal-editor"><div className="journal-date"><CalendarDays size={15} /> {currentDate}</div><textarea value={state.journal} onChange={(event) => setState(daySnapshot({ ...state, journal: event.target.value }))} placeholder="What felt easy? What felt heavy? What will you try next?" /><div className="journal-footer"><span>{state.journal.length} characters</span><button className="primary-button compact" onClick={() => { commit(state, 'Journal entry saved.'); }}>Save entry</button></div></div><div className="panel reflection-card"><span className="section-kicker">End of session</span><h3>What will you do next?</h3><p>Leave a small breadcrumb for your future self.</p><textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="Next time I will start with..." /><button className="secondary-button" onClick={() => { setReflection(''); setNotice('Reflection saved for your next session.'); }}>Save reflection <ArrowRight size={15} /></button></div></div></section>
+          <section className="page-section journal-page">
+            <div className="page-intro-row"><div><span className="section-kicker">A private place to think</span><h2>Your daily diary.</h2><p>Keep the thoughts, feelings, small wins, and lessons that belong to you—not to your task list.</p></div><NotebookPen size={34} className="journal-mark" /></div>
+            <div className="diary-layout">
+              <div className="panel diary-editor">
+                <div className="diary-editor-top"><div className="journal-date"><CalendarDays size={15} /> {new Date(`${diaryDate}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div><div className="diary-date-controls"><IconButton label="Previous diary day" onClick={() => setDiaryDate(shiftDateKey(diaryDate, -1))}><ChevronLeft size={16} /></IconButton><button className="today-button" onClick={() => setDiaryDate(todayKey)}>Today</button><IconButton label="Next diary day" onClick={() => setDiaryDate(shiftDateKey(diaryDate, 1))}><ChevronRight size={16} /></IconButton></div></div>
+                <textarea value={diaryDraft} onChange={(event) => setDiaryDraft(event.target.value)} placeholder="What felt easy? What felt heavy? What do you want to remember about today?" />
+                <div className="journal-footer"><span>{diaryDraft.length} characters</span><button className="primary-button compact" onClick={saveDiaryEntry}>Save diary entry <Check size={14} /></button></div>
+              </div>
+              <div className="panel diary-history">
+                <div className="panel-heading"><div><span className="section-kicker">Your pages</span><h3>Previous entries</h3></div><NotebookPen size={19} className="heading-icon" /></div>
+                <button className={`diary-entry-item ${diaryDate === todayKey ? 'is-active' : ''}`} onClick={() => setDiaryDate(todayKey)}><span className="diary-entry-date">Today</span><small>{state.diaryEntries?.[todayKey] ? state.diaryEntries[todayKey] : 'Start a page for today'}</small></button>
+                {diaryEntryDates.filter((date) => date !== todayKey).map((date) => <button className={`diary-entry-item ${diaryDate === date ? 'is-active' : ''}`} key={date} onClick={() => setDiaryDate(date)}><span className="diary-entry-date">{new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span><small>{state.diaryEntries[date]}</small></button>)}
+                {diaryEntryDates.length === 0 && <div className="diary-empty"><Sprout size={20} /><span>Your first diary page is waiting.</span></div>}
+              </div>
+            </div>
+            <div className="panel reflection-card diary-reflection"><span className="section-kicker">A small prompt</span><h3>What will you carry forward?</h3><p>Leave a breadcrumb for your future self, separate from your calendar plans.</p><div className="reflection-row"><textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="Next time I will start with..." /><button className="secondary-button" onClick={() => { setReflection(''); setNotice('Reflection saved for your next session.'); }}>Save reflection <ArrowRight size={15} /></button></div></div>
+          </section>
         )}
 
         {view === 'settings' && (
