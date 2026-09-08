@@ -41,7 +41,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 
-type View = 'overview' | 'tasks' | 'history' | 'journal' | 'settings';
+type View = 'overview' | 'tasks' | 'calendar' | 'history' | 'journal' | 'settings';
 type StudyMode = 'Learning' | 'Test prep' | 'Normal study';
 
 type StudyTask = {
@@ -742,7 +742,8 @@ function Home() {
 
   const pageTitle = {
     overview: 'Good morning',
-    tasks: 'Your study plan',
+    tasks: 'Your tasks',
+    calendar: 'Your calendar',
     history: 'Plant history',
     journal: 'Daily diary',
     settings: 'Preferences',
@@ -778,6 +779,7 @@ function Home() {
           <div className="nav-label">Workspace</div>
           <NavButton active={view === 'overview'} onClick={() => setView('overview')} icon={<BarChart3 size={17} />} label="Overview" />
           <NavButton active={view === 'tasks'} onClick={() => setView('tasks')} icon={<ListChecks size={17} />} label="My plan" />
+           <NavButton active={view === 'calendar'} onClick={() => setView('calendar')} icon={<CalendarDays size={17} />} label="Calendar" />
           <NavButton active={view === 'history'} onClick={() => setView('history')} icon={<Flower2 size={17} />} label="Plant history" />
           <NavButton active={view === 'journal'} onClick={() => setView('journal')} icon={<NotebookPen size={17} />} label="Daily diary" />
           <div className="nav-label nav-label-spaced">Personal</div>
@@ -923,37 +925,43 @@ function Home() {
           </>
         )}
 
-         {view === 'tasks' && (
+          {view === 'calendar' && (
+            <section className="page-section">
+              <div className="page-intro-row"><div><span className="section-kicker">Your calendar</span><h2>Give every important day its own space.</h2><p>Keep exams, holidays, deadlines, and personal reminders here—separate from your study tasks.</p></div><CalendarDays size={34} className="journal-mark" /></div>
+              <div className="calendar-layout">
+                <div className="panel calendar-panel">
+                  <div className="calendar-header">
+                    <div><span className="section-kicker">Monthly view</span><h3>{monthLabel(calendarMonth)}</h3></div>
+                    <div className="calendar-controls"><IconButton label="Previous month" onClick={() => moveCalendarMonth(-1)}><ChevronLeft size={17} /></IconButton><button className="today-button" onClick={() => { const now = new Date(); setCalendarMonth(now); selectCalendarDate(now); }}>Today</button><IconButton label="Next month" onClick={() => moveCalendarMonth(1)}><ChevronRight size={17} /></IconButton></div>
+                  </div>
+                  <div className="calendar-weekdays">{weekdayLabels.map((day) => <span key={day}>{day}</span>)}</div>
+                  <div className="calendar-grid">
+                    {calendarCells.map((date, index) => {
+                      if (!date) return <div className="calendar-cell calendar-cell-empty" key={`empty-${index}`} />;
+                      const key = localDateKey(date);
+                      const note = state.calendarNotes?.[key];
+                      const isToday = key === todayKey;
+                      const isSelected = key === selectedCalendarDate;
+                      return <button className={`calendar-cell ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''} ${note ? 'has-note' : ''}`} key={key} onClick={() => selectCalendarDate(date)}><span className="calendar-day-number">{date.getDate()}</span>{note ? <span className="calendar-note-preview">{note}</span> : <span className="calendar-note-placeholder">add note</span>}</button>;
+                    })}
+                  </div>
+                  <div className="calendar-legend"><span><i className="legend-dot today-dot" /> Today</span><span><i className="legend-dot note-dot" /> Has a note</span></div>
+                </div>
+                <div className="panel calendar-note-panel">
+                  <div className="calendar-note-heading"><div className="calendar-note-icon"><CalendarDays size={18} /></div><div><span className="section-kicker">Day note</span><h3>{selectedDateLabel}</h3></div></div>
+                  <p>Write anything that helps you remember the shape of this day.</p>
+                  <textarea value={calendarNoteDraft} onChange={(event) => setCalendarNoteDraft(event.target.value)} placeholder="Exam at 10:00, holiday, review chapter 4..." />
+                  <div className="calendar-note-footer"><span>{calendarNoteDraft.length} characters</span><button className="primary-button compact" onClick={saveCalendarNote}>Save note <Check size={14} /></button></div>
+                  {state.calendarNotes?.[selectedCalendarDate] && <button className="calendar-clear-button" onClick={() => { setCalendarNoteDraft(''); const calendarNotes = { ...(state.calendarNotes ?? {}) }; delete calendarNotes[selectedCalendarDate]; commit({ ...state, calendarNotes }, 'Day note removed.'); }}>Clear this note</button>}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {view === 'tasks' && (
            <section className="page-section">
-             <div className="page-intro-row"><div><span className="section-kicker">My monthly plan</span><h2>Make space for every important day.</h2><p>Use this month as your calm home for exams, holidays, deadlines, and the small notes you do not want to lose.</p></div><button className="primary-button" onClick={() => { setEditingTaskId(null); setNewTaskTitle(''); setShowTaskForm(!showTaskForm); }}><Plus size={17} /> Add task</button></div>
-             <div className="calendar-layout">
-               <div className="panel calendar-panel">
-                 <div className="calendar-header">
-                   <div><span className="section-kicker">Monthly view</span><h3>{monthLabel(calendarMonth)}</h3></div>
-                   <div className="calendar-controls"><IconButton label="Previous month" onClick={() => moveCalendarMonth(-1)}><ChevronLeft size={17} /></IconButton><button className="today-button" onClick={() => { const now = new Date(); setCalendarMonth(now); selectCalendarDate(now); }}>Today</button><IconButton label="Next month" onClick={() => moveCalendarMonth(1)}><ChevronRight size={17} /></IconButton></div>
-                 </div>
-                 <div className="calendar-weekdays">{weekdayLabels.map((day) => <span key={day}>{day}</span>)}</div>
-                 <div className="calendar-grid">
-                   {calendarCells.map((date, index) => {
-                     if (!date) return <div className="calendar-cell calendar-cell-empty" key={`empty-${index}`} />;
-                     const key = localDateKey(date);
-                     const note = state.calendarNotes?.[key];
-                     const isToday = key === todayKey;
-                     const isSelected = key === selectedCalendarDate;
-                     return <button className={`calendar-cell ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''} ${note ? 'has-note' : ''}`} key={key} onClick={() => selectCalendarDate(date)}><span className="calendar-day-number">{date.getDate()}</span>{note ? <span className="calendar-note-preview">{note}</span> : <span className="calendar-note-placeholder">add note</span>}</button>;
-                   })}
-                 </div>
-                 <div className="calendar-legend"><span><i className="legend-dot today-dot" /> Today</span><span><i className="legend-dot note-dot" /> Has a note</span></div>
-               </div>
-               <div className="panel calendar-note-panel">
-                 <div className="calendar-note-heading"><div className="calendar-note-icon"><CalendarDays size={18} /></div><div><span className="section-kicker">Day note</span><h3>{selectedDateLabel}</h3></div></div>
-                 <p>Write anything that helps you remember the shape of this day.</p>
-                 <textarea value={calendarNoteDraft} onChange={(event) => setCalendarNoteDraft(event.target.value)} placeholder="Exam at 10:00, holiday, review chapter 4..." />
-                 <div className="calendar-note-footer"><span>{calendarNoteDraft.length} characters</span><button className="primary-button compact" onClick={saveCalendarNote}>Save note <Check size={14} /></button></div>
-                 {state.calendarNotes?.[selectedCalendarDate] && <button className="calendar-clear-button" onClick={() => { setCalendarNoteDraft(''); const calendarNotes = { ...(state.calendarNotes ?? {}) }; delete calendarNotes[selectedCalendarDate]; commit({ ...state, calendarNotes }, 'Day note removed.'); }}>Clear this note</button>}
-               </div>
-             </div>
-            {showTaskForm && <div className="panel task-form"><div className="form-header"><h3>{editingTaskId ? 'Edit study task' : 'New study task'}</h3><IconButton label="Close form" onClick={() => { setShowTaskForm(false); setEditingTaskId(null); }}><X size={17} /></IconButton></div><div className="form-grid"><label>Task name<input value={newTaskTitle} onChange={(event) => setNewTaskTitle(event.target.value)} placeholder="e.g. Read chapter 5" /></label><label>Pages<input type="number" min="1" value={newTaskPages} onChange={(event) => setNewTaskPages(event.target.value)} /></label><label>Subject<select value={newTaskSubject} onChange={(event) => setNewTaskSubject(event.target.value)}>{state.subjects.map((subject) => <option key={subject}>{subject}</option>)}</select></label><label>Type<select value={newTaskKind} onChange={(event) => setNewTaskKind(event.target.value as StudyTask['kind'])}><option>Homework</option><option>Project</option><option>Test</option></select></label></div><button className="primary-button" onClick={saveTask}>{editingTaskId ? 'Save changes' : 'Add to my plan'} <ArrowRight size={16} /></button></div>}
+              <div className="page-intro-row"><div><span className="section-kicker">My plan</span><h2>Keep your study tasks in one place.</h2><p>Manage what you need to study here. Your dates and reminders live separately in Calendar.</p></div><button className="primary-button" onClick={() => { setEditingTaskId(null); setNewTaskTitle(''); setShowTaskForm(!showTaskForm); }}><Plus size={17} /> Add task</button></div>
+             {showTaskForm && <div className="panel task-form"><div className="form-header"><h3>{editingTaskId ? 'Edit study task' : 'New study task'}</h3><IconButton label="Close form" onClick={() => { setShowTaskForm(false); setEditingTaskId(null); }}><X size={17} /></IconButton></div><div className="form-grid"><label>Task name<input value={newTaskTitle} onChange={(event) => setNewTaskTitle(event.target.value)} placeholder="e.g. Read chapter 5" /></label><label>Pages<input type="number" min="1" value={newTaskPages} onChange={(event) => setNewTaskPages(event.target.value)} /></label><label>Subject<select value={newTaskSubject} onChange={(event) => setNewTaskSubject(event.target.value)}>{state.subjects.map((subject) => <option key={subject}>{subject}</option>)}</select></label><label>Type<select value={newTaskKind} onChange={(event) => setNewTaskKind(event.target.value as StudyTask['kind'])}><option>Homework</option><option>Project</option><option>Test</option></select></label></div><button className="primary-button" onClick={saveTask}>{editingTaskId ? 'Save changes' : 'Add to my plan'} <ArrowRight size={16} /></button></div>}
              <TaskList tasks={state.tasks} onAddPage={addPage} onToggle={toggleTask} onDelete={deleteTask} onEdit={editTask} />
           </section>
         )}
