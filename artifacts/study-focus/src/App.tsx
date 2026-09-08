@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -78,11 +78,19 @@ type StudyState = {
   selectedMinutes: number;
   remainingSeconds: number;
   timerRunning: boolean;
+  breakRunning: boolean;
+  breakRemainingSeconds: number;
+  breakSecondsToday: number;
   subject: string;
   mode: StudyMode;
   journal: string;
   displayName: string;
   history: PlantSnapshot[];
+  distractionRunning: boolean;
+  distractionReason: string;
+  distractionStartedAt: number | null;
+  lostSeconds: number;
+  compensationSeconds: number;
 };
 
 const queryClient = new QueryClient();
@@ -100,6 +108,16 @@ const defaultHistory: PlantSnapshot[] = [
   { date: 'sun', label: 'Sun', xp: 0, streak: 0, pages: 0, sessions: 0, stage: 1, note: 'Today is yours to grow.' },
 ];
 
+const dailyQuotes = [
+  { text: 'Small steps still move you forward.', author: 'Study Focus' },
+  { text: 'You do not need to feel ready to begin.', author: 'Study Focus' },
+  { text: 'A page today is a gift to tomorrow.', author: 'Study Focus' },
+  { text: 'Make it simple. Make it yours. Keep going.', author: 'Study Focus' },
+  { text: 'Your attention is a place worth tending.', author: 'Study Focus' },
+  { text: 'Progress grows quietly before it becomes visible.', author: 'Study Focus' },
+  { text: 'Begin with care, then let rhythm do the rest.', author: 'Study Focus' },
+];
+
 const initialState: StudyState = {
   tasks: defaultTasks,
   subjects: ['Biology', 'Mathematics', 'History', 'Languages'],
@@ -113,11 +131,19 @@ const initialState: StudyState = {
   selectedMinutes: 25,
   remainingSeconds: 25 * 60,
   timerRunning: false,
+  breakRunning: false,
+  breakRemainingSeconds: 10 * 60,
+  breakSecondsToday: 0,
   subject: 'Biology',
   mode: 'Learning',
   journal: '',
   displayName: 'Alex',
   history: defaultHistory,
+  distractionRunning: false,
+  distractionReason: '',
+  distractionStartedAt: null,
+  lostSeconds: 0,
+  compensationSeconds: 0,
 };
 
 function readState(): StudyState {
@@ -160,6 +186,13 @@ function formatTime(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
   const seconds = (totalSeconds % 60).toString().padStart(2, '0');
   return `${minutes}:${seconds}`;
+}
+
+function formatDurationLabel(totalSeconds: number) {
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return seconds ? `${minutes}m ${seconds}s` : `${minutes}m`;
 }
 
 function IconButton({
@@ -314,17 +347,30 @@ function Home() {
   const [newTaskPages, setNewTaskPages] = useState('5');
   const [newTaskSubject, setNewTaskSubject] = useState('Biology');
   const [newTaskKind, setNewTaskKind] = useState<StudyTask['kind']>('Homework');
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [reflection, setReflection] = useState('');
   const [newSubject, setNewSubject] = useState('');
   const [celebration, setCelebration] = useState(false);
+  const [clockNow, setClockNow] = useState(() => Date.now());
+  const breakCompletionNotified = useRef(false);
 
   const stage = getPlantStage(state.xp, state.streak);
   const incompleteTasks = state.tasks.filter((task) => !task.completed);
+  const dailyQuote = dailyQuotes[new Date().getDay() % dailyQuotes.length];
+  const activeDistractionSeconds = state.distractionRunning && state.distractionStartedAt
+    ? Math.max(0, Math.floor((clockNow - state.distractionStartedAt) / 1000))
+    : 0;
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setHomecoming(false), 2100);
     return () => window.clearTimeout(timeout);
   }, []);
+
+  useEffect(() => {
+    if (!state.distractionRunning) return undefined;
+    const interval = window.setInterval(() => setClockNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [state.distractionRunning]);
   const activeTask = incompleteTasks[0] ?? state.tasks[0];
   const pagesDone = state.tasks.reduce((sum, task) => sum + task.completedPages, 0);
   const pagesTotal = state.tasks.reduce((sum, task) => sum + task.pages, 0);
@@ -344,41 +390,125 @@ function Home() {
   }, [state]);
 
   useEffect(() => {
-    if (!state.timerRunning) return undefined;
+    if (!state.timerRunning && !state.breakRunning) return undefined;
     const interval = window.setInterval(() => {
       setState((previous) => {
-        if (!previous.timerRunning) return previous;
-        if (previous.remainingSeconds <= 1) {
-          setBreakReady(true);
-          return daySnapshot({
+        if (previous.timerRunning) {
+          if (previous.remainingSeconds <= 1) {
+            setBreakReady(true);
+            return daySnapshot({
+              ...previous,
+              remainingSeconds: 0,
+              timerRunning: false,
+              breakRunning: false,
+              breakRemainingSeconds: 10 * 60,
+              compensationSeconds: 0,
+              sessions: previous.sessions + 1,
+              xp: previous.xp + 10,
+            });
+          }
+          const nextRemaining = previous.remainingSeconds - 1;
+          return {
             ...previous,
-            remainingSeconds: 0,
-            timerRunning: false,
-            sessions: previous.sessions + 1,
-            xp: previous.xp + 30,
-          });
+            remainingSeconds: nextRemaining,
+            compensationSeconds: previous.compensationSeconds > 0 && nextRemaining <= previous.selectedMinutes * 60 ? 0 : previous.compensationSeconds,
+          };
         }
-        return { ...previous, remainingSeconds: previous.remainingSeconds - 1 };
+        if (previous.breakRunning) {
+          if (previous.breakRemainingSeconds <= 1) {
+            return {
+              ...previous,
+              breakRemainingSeconds: 0,
+              breakRunning: false,
+              breakSecondsToday: previous.breakSecondsToday + 1,
+            };
+          }
+          return {
+            ...previous,
+            breakRemainingSeconds: previous.breakRemainingSeconds - 1,
+            breakSecondsToday: previous.breakSecondsToday + 1,
+          };
+        }
+        return previous;
       });
     }, 1000);
     return () => window.clearInterval(interval);
-  }, [state.timerRunning]);
+  }, [state.timerRunning, state.breakRunning]);
+
+  useEffect(() => {
+    if (!state.breakRunning && breakReady && state.breakRemainingSeconds === 0 && !breakCompletionNotified.current) {
+      breakCompletionNotified.current = true;
+      setNotice('Your break is complete. Your focus garden is ready.');
+      try {
+        const context = new window.AudioContext();
+        [660, 880, 1046].forEach((frequency, index) => {
+          const oscillator = context.createOscillator();
+          const gain = context.createGain();
+          oscillator.frequency.value = frequency;
+          oscillator.type = 'sine';
+          gain.gain.setValueAtTime(0.0001, context.currentTime + index * 0.14);
+          gain.gain.exponentialRampToValueAtTime(0.08, context.currentTime + index * 0.14 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + index * 0.14 + 0.28);
+          oscillator.connect(gain);
+          gain.connect(context.destination);
+          oscillator.start(context.currentTime + index * 0.14);
+          oscillator.stop(context.currentTime + index * 0.14 + 0.3);
+        });
+        window.setTimeout(() => void context.close(), 900);
+      } catch {
+        // The visual notice remains available when audio is blocked by the browser.
+      }
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('Break complete', { body: 'Your 10-minute reset is finished. Ready to study?' });
+      }
+    }
+  }, [breakReady, state.breakRemainingSeconds, state.breakRunning]);
 
   const startTimer = () => {
+    if (state.breakRunning || state.distractionRunning) return;
+    const compensation = state.compensationSeconds;
+    const baseSeconds = state.remainingSeconds === state.selectedMinutes * 60
+      ? state.selectedMinutes * 60 + compensation
+      : state.remainingSeconds;
     commit(
-      { ...state, timerRunning: true, remainingSeconds: state.remainingSeconds || state.selectedMinutes * 60 },
-      'Focus session started. Your next page is enough.',
+      { ...state, timerRunning: true, remainingSeconds: baseSeconds },
+      compensation > 0
+        ? `Focus session started with ${formatDurationLabel(compensation)} to make up.`
+        : 'Focus session started. Your next page is enough.',
     );
   };
 
-  const resetTimer = () => commit({ ...state, timerRunning: false, remainingSeconds: state.selectedMinutes * 60 });
+  const resetTimer = () => commit({ ...state, timerRunning: false, remainingSeconds: state.selectedMinutes * 60 + state.compensationSeconds });
 
   const finishSession = () => {
+    if (state.distractionRunning) {
+      setNotice('Return to study before ending this session.');
+      return;
+    }
     commit(
-      { ...state, timerRunning: false, remainingSeconds: state.selectedMinutes * 60, sessions: state.sessions + 1, xp: state.xp + 25 },
-      'Session complete. You earned 25 XP.',
+      { ...state, timerRunning: false, remainingSeconds: state.selectedMinutes * 60, compensationSeconds: 0, sessions: state.sessions + 1, xp: state.xp + 10, breakRunning: false, breakRemainingSeconds: 10 * 60 },
+      'Session complete. You earned 10 XP.',
     );
     setBreakReady(true);
+    breakCompletionNotified.current = false;
+  };
+
+  const startBreak = () => {
+    breakCompletionNotified.current = false;
+    if ('Notification' in window && Notification.permission === 'default') {
+      void Notification.requestPermission();
+    }
+    commit(
+      { ...state, timerRunning: false, breakRunning: true, breakRemainingSeconds: state.breakRemainingSeconds || 10 * 60 },
+      'Your 10-minute break has started. We will let you know when it ends.',
+    );
+  };
+
+  const closeBreak = () => {
+    setBreakReady(false);
+    if (!state.breakRunning) {
+      commit({ ...state, breakRemainingSeconds: 10 * 60 }, 'Back to your study garden.');
+    }
   };
 
   const addPage = (taskId: string) => {
@@ -390,8 +520,8 @@ function Home() {
       item.id === taskId ? { ...item, completedPages, completed } : item,
     );
     commit(
-      { ...state, tasks: nextTasks, todayPages: state.todayPages + 1, xp: state.xp + 10 },
-      completed ? `${task.title} complete. A 10 minute break is ready.` : '+1 page logged. You earned 10 XP.',
+      { ...state, tasks: nextTasks, todayPages: state.todayPages + 1, xp: state.xp + 5 },
+      completed ? `${task.title} complete. A 10 minute break is ready.` : '+1 page logged. You earned 5 XP.',
     );
     setCelebration(true);
     window.setTimeout(() => setCelebration(false), 1500);
@@ -409,9 +539,31 @@ function Home() {
     commit({ ...state, tasks: state.tasks.filter((task) => task.id !== taskId) }, 'Task removed.');
   };
 
-  const addTask = () => {
+  const editTask = (task: StudyTask) => {
+    setEditingTaskId(task.id);
+    setNewTaskTitle(task.title);
+    setNewTaskPages(String(task.pages));
+    setNewTaskSubject(task.subject);
+    setNewTaskKind(task.kind);
+    setShowTaskForm(true);
+    setView('tasks');
+  };
+
+  const saveTask = () => {
     if (!newTaskTitle.trim()) return;
     const pages = Math.max(1, Number.parseInt(newTaskPages, 10) || 1);
+    if (editingTaskId) {
+      const nextTasks = state.tasks.map((task) => {
+        if (task.id !== editingTaskId) return task;
+        const completedPages = Math.min(task.completedPages, pages);
+        return { ...task, title: newTaskTitle.trim(), pages, subject: newTaskSubject, kind: newTaskKind, completedPages, completed: completedPages >= pages };
+      });
+      commit({ ...state, tasks: nextTasks }, 'Task changes saved.');
+      setEditingTaskId(null);
+      setNewTaskTitle('');
+      setShowTaskForm(false);
+      return;
+    }
     const task: StudyTask = {
       id: `${Date.now()}`,
       title: newTaskTitle.trim(),
@@ -422,7 +574,7 @@ function Home() {
       priority: 'Medium',
       completed: false,
     };
-    commit({ ...state, tasks: [task, ...state.tasks] }, 'New task added to your plan.');
+    commit({ ...state, tasks: [...state.tasks, task] }, 'New task added to your plan.');
     setNewTaskTitle('');
     setNewTaskPages('5');
     setShowTaskForm(false);
@@ -450,10 +602,34 @@ function Home() {
   };
 
   const recordDistraction = (reason: string) => {
+    if (state.distractionRunning) return;
     const message = reason === 'Stuck'
-      ? 'Try writing one guess, then break the concept into a smaller question.'
-      : 'A short reset may help. Come back when your mind feels ready.';
-    commit({ ...state, distractions: state.distractions + 1, minutesLost: state.minutesLost + 5 }, message);
+      ? 'The distraction clock is running. Break the concept into a smaller question.'
+      : 'The distraction clock is running. Return when your mind feels ready.';
+    commit({
+      ...state,
+      timerRunning: false,
+      distractions: state.distractions + 1,
+      distractionReason: reason,
+      distractionRunning: true,
+      distractionStartedAt: Date.now(),
+    }, message);
+    setClockNow(Date.now());
+  };
+
+  const returnToStudy = () => {
+    if (!state.distractionRunning || !state.distractionStartedAt) return;
+    const elapsed = Math.max(1, activeDistractionSeconds);
+    const totalLost = state.lostSeconds + elapsed;
+    commit({
+      ...state,
+      distractionRunning: false,
+      distractionReason: '',
+      distractionStartedAt: null,
+      lostSeconds: totalLost,
+      minutesLost: Math.ceil(totalLost / 60),
+      compensationSeconds: state.compensationSeconds + elapsed,
+    }, `Welcome back. ${formatDurationLabel(elapsed)} added to your make-up time.`);
   };
 
   const pageTitle = {
@@ -550,13 +726,13 @@ function Home() {
                 <AnimatePresence>
                   {celebration && (
                     <motion.div className="xp-burst" initial={{ opacity: 0, y: 18, scale: .7 }} animate={{ opacity: 1, y: -18, scale: 1 }} exit={{ opacity: 0, y: -56, scale: 1.15 }} transition={{ duration: .8 }}>
-                      <Sparkles size={14} /> +10 XP
+                      <Sparkles size={14} /> +5 XP
                     </motion.div>
                   )}
                 </AnimatePresence>
                 <div className="focus-layout">
                   <div className="timer-wrap">
-                    <div className={`timer-ring ${state.timerRunning ? 'is-running' : ''}`} style={{ '--timer-progress': `${100 - (state.remainingSeconds / (state.selectedMinutes * 60)) * 100}%` } as React.CSSProperties}>
+                    <div className={`timer-ring ${state.timerRunning ? 'is-running' : ''}`} style={{ '--timer-progress': `${100 - (state.remainingSeconds / (state.selectedMinutes * 60 + (state.compensationSeconds || 0))) * 100}%` } as React.CSSProperties}>
                       <div className="timer-inner">
                         <span className="timer-label">{state.timerRunning ? 'in focus' : 'ready when you are'}</span>
                         <strong>{formatTime(state.remainingSeconds)}</strong>
@@ -568,24 +744,25 @@ function Home() {
                       {state.timerRunning ? (
                         <button className="round-play-button" onClick={() => commit({ ...state, timerRunning: false }, 'Session paused.') }><Pause size={19} fill="currentColor" /></button>
                       ) : (
-                        <button className="round-play-button" onClick={startTimer}><Play size={19} fill="currentColor" /></button>
+                        <button className="round-play-button" onClick={startTimer} disabled={state.breakRunning || state.distractionRunning}><Play size={19} fill="currentColor" /></button>
                       )}
                       <IconButton label="Finish session" onClick={finishSession}><Check size={17} /></IconButton>
                     </div>
                     <div className="preset-row">
                       {[25, 50, 90].map((minutes) => (
-                        <button className={state.selectedMinutes === minutes ? 'selected' : ''} key={minutes} onClick={() => !state.timerRunning && commit({ ...state, selectedMinutes: minutes, remainingSeconds: minutes * 60 })}>{minutes} min</button>
+                        <button className={state.selectedMinutes === minutes ? 'selected' : ''} key={minutes} onClick={() => !state.timerRunning && !state.breakRunning && commit({ ...state, selectedMinutes: minutes, remainingSeconds: minutes * 60 + state.compensationSeconds })}>{minutes} min</button>
                       ))}
                     </div>
                   </div>
                   <div className="focus-side">
-                    <div className="focus-quote"><span className="quote-mark">“</span><p>The goal is not to finish everything. It’s to begin with care.</p></div>
+                    <div className="focus-quote"><span className="quote-mark">“</span><div><p>{dailyQuote.text}</p><small>— {dailyQuote.author}</small></div></div>
                     <div className="current-task-card">
                       <div className="task-card-top"><span>Next page</span><span className="priority-dot" /></div>
                       <strong>{activeTask?.title ?? 'Add a task to begin'}</strong>
                       <div className="task-card-progress"><span style={{ width: `${activeTask ? (activeTask.completedPages / activeTask.pages) * 100 : 0}%` }} /></div>
-                      <div className="task-card-bottom"><small>{activeTask ? `${activeTask.completedPages} of ${activeTask.pages} pages` : 'No active task'}</small><button onClick={() => activeTask && addPage(activeTask.id)} disabled={!activeTask || activeTask.completed}><Plus size={15} /> Page done</button></div>
+                      <div className="task-card-bottom"><small>{activeTask ? `${activeTask.completedPages} of ${activeTask.pages} pages` : 'No active task'}</small><button onClick={() => activeTask && addPage(activeTask.id)} disabled={!activeTask || activeTask.completed || state.distractionRunning}><Plus size={15} /> Page done</button></div>
                     </div>
+                    {state.compensationSeconds > 0 && <div className="make-up-pill"><Clock3 size={13} /> {formatDurationLabel(state.compensationSeconds)} to make up in your next focus</div>}
                     <button className="text-button" onClick={() => setView('tasks')}>See your full plan <ArrowRight size={15} /></button>
                   </div>
                 </div>
@@ -613,28 +790,35 @@ function Home() {
                </motion.div>
                <motion.div className="panel distraction-panel" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .98, duration: .7, ease: [0.22, 1, 0.36, 1] }}>
                 <div className="panel-heading"><div><span className="section-kicker">Stay honest</span><h3>Mind wandered?</h3></div><CircleHelp size={20} className="heading-icon" /></div>
-                <p className="panel-description">Tap what pulled you away. Noticing is already a way back.</p>
-                <div className="distraction-actions">
-                  <button onClick={() => recordDistraction('Tired')}><span>Tired / hungry</span><Clock3 size={15} /></button>
-                  <button onClick={() => recordDistraction('Bored')}><span>Bored</span><Minus size={15} /></button>
-                  <button onClick={() => recordDistraction('Stuck')}><span>Hard concept</span><TriangleAlert size={15} /></button>
-                 </div>
-                <div className="distraction-summary"><span><strong>{state.distractions}</strong> distractions today</span><span><strong>{state.minutesLost}m</strong> time lost</span></div>
+                 <p className="panel-description">{state.distractionRunning ? `Timer running since you felt ${state.distractionReason.toLowerCase()}.` : 'Tap what pulled you away. We will count the time until you are ready to return.'}</p>
+                 {state.distractionRunning ? (
+                   <div className="distraction-live">
+                     <div><span className="live-label">Time away</span><strong>{formatTime(activeDistractionSeconds)}</strong></div>
+                     <button className="primary-button compact" onClick={returnToStudy}><Check size={14} /> I’m ready to return</button>
+                   </div>
+                 ) : (
+                   <div className="distraction-actions">
+                     <button onClick={() => recordDistraction('Tired')}><span>Hungry / tired</span><Clock3 size={15} /></button>
+                     <button onClick={() => recordDistraction('Bored')}><span>Bored</span><Minus size={15} /></button>
+                     <button onClick={() => recordDistraction('Stuck')}><span>Hard concept</span><TriangleAlert size={15} /></button>
+                   </div>
+                 )}
+                 <div className="distraction-summary"><span><strong>{state.distractions}</strong> moments today</span><span><strong>{formatDurationLabel(state.lostSeconds)}</strong> time away</span>{state.compensationSeconds > 0 && <span><strong>{formatDurationLabel(state.compensationSeconds)}</strong> to make up</span>}</div>
                </motion.div>
             </section>
 
              <motion.section className="section-block" initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.08, duration: .7, ease: [0.22, 1, 0.36, 1] }}>
               <div className="section-title-row"><div><span className="section-kicker">A gentle plan</span><h3>What’s on your desk</h3></div><button className="text-button" onClick={() => setView('tasks')}>Manage tasks <ArrowRight size={15} /></button></div>
-              <TaskList tasks={state.tasks.slice(0, 3)} onAddPage={addPage} onToggle={toggleTask} onDelete={deleteTask} />
+              <TaskList tasks={state.tasks.slice(0, 3)} onAddPage={addPage} onToggle={toggleTask} onDelete={deleteTask} onEdit={editTask} />
              </motion.section>
           </>
         )}
 
         {view === 'tasks' && (
           <section className="page-section">
-            <div className="page-intro-row"><div><span className="section-kicker">Tasks & subjects</span><h2>Make the next step visible.</h2><p>Turn homework, projects, and upcoming tests into pages you can gently finish.</p></div><button className="primary-button" onClick={() => setShowTaskForm(!showTaskForm)}><Plus size={17} /> Add task</button></div>
-            {showTaskForm && <div className="panel task-form"><div className="form-header"><h3>New study task</h3><IconButton label="Close form" onClick={() => setShowTaskForm(false)}><X size={17} /></IconButton></div><div className="form-grid"><label>Task name<input value={newTaskTitle} onChange={(event) => setNewTaskTitle(event.target.value)} placeholder="e.g. Read chapter 5" /></label><label>Pages<input type="number" min="1" value={newTaskPages} onChange={(event) => setNewTaskPages(event.target.value)} /></label><label>Subject<select value={newTaskSubject} onChange={(event) => setNewTaskSubject(event.target.value)}>{state.subjects.map((subject) => <option key={subject}>{subject}</option>)}</select></label><label>Type<select value={newTaskKind} onChange={(event) => setNewTaskKind(event.target.value as StudyTask['kind'])}><option>Homework</option><option>Project</option><option>Test</option></select></label></div><button className="primary-button" onClick={addTask}>Add to my plan <ArrowRight size={16} /></button></div>}
-            <TaskList tasks={state.tasks} onAddPage={addPage} onToggle={toggleTask} onDelete={deleteTask} />
+            <div className="page-intro-row"><div><span className="section-kicker">Tasks & subjects</span><h2>Make the next step visible.</h2><p>Turn homework, projects, and upcoming tests into pages you can gently finish.</p></div><button className="primary-button" onClick={() => { setEditingTaskId(null); setNewTaskTitle(''); setShowTaskForm(!showTaskForm); }}><Plus size={17} /> Add task</button></div>
+            {showTaskForm && <div className="panel task-form"><div className="form-header"><h3>{editingTaskId ? 'Edit study task' : 'New study task'}</h3><IconButton label="Close form" onClick={() => { setShowTaskForm(false); setEditingTaskId(null); }}><X size={17} /></IconButton></div><div className="form-grid"><label>Task name<input value={newTaskTitle} onChange={(event) => setNewTaskTitle(event.target.value)} placeholder="e.g. Read chapter 5" /></label><label>Pages<input type="number" min="1" value={newTaskPages} onChange={(event) => setNewTaskPages(event.target.value)} /></label><label>Subject<select value={newTaskSubject} onChange={(event) => setNewTaskSubject(event.target.value)}>{state.subjects.map((subject) => <option key={subject}>{subject}</option>)}</select></label><label>Type<select value={newTaskKind} onChange={(event) => setNewTaskKind(event.target.value as StudyTask['kind'])}><option>Homework</option><option>Project</option><option>Test</option></select></label></div><button className="primary-button" onClick={saveTask}>{editingTaskId ? 'Save changes' : 'Add to my plan'} <ArrowRight size={16} /></button></div>}
+             <TaskList tasks={state.tasks} onAddPage={addPage} onToggle={toggleTask} onDelete={deleteTask} onEdit={editTask} />
           </section>
         )}
 
@@ -655,7 +839,7 @@ function Home() {
         )}
       </motion.main>
 
-      {breakReady && <div className="break-overlay"><div className="break-modal"><div className="break-icon"><Coffee size={25} /></div><span className="section-kicker">A reward for showing up</span><h2>Your 10-minute break is ready.</h2><p>You finished a meaningful piece of your plan. Step away, breathe, and come back when you’re ready.</p><div className="break-actions"><button className="secondary-button" onClick={() => setBreakReady(false)}>Not now</button><button className="primary-button" onClick={() => { setBreakReady(false); setNotice('Break started. Enjoy your reset.'); }}>Start break <ArrowRight size={15} /></button></div></div></div>}
+      {breakReady && <div className="break-overlay"><div className="break-modal"><div className="break-icon"><Coffee size={25} /></div><span className="section-kicker">{state.breakRunning ? 'Your reset is in progress' : state.breakRemainingSeconds === 0 ? 'A gentle reset complete' : 'A reward for showing up'}</span><h2>{state.breakRunning ? formatTime(state.breakRemainingSeconds) : state.breakRemainingSeconds === 0 ? 'Ready to return?' : 'Your 10-minute break is ready.'}</h2><p>{state.breakRunning ? `Your break time is being counted: ${formatDurationLabel(state.breakSecondsToday)} logged today.` : state.breakRemainingSeconds === 0 ? `You took ${formatDurationLabel(state.breakSecondsToday)} to reset. Your focus garden is ready.` : 'Start the break timer and we will count every second, then notify you when it ends.'}</p><div className="break-actions">{state.breakRunning ? <button className="secondary-button" onClick={() => setBreakReady(false)}>Keep running</button> : state.breakRemainingSeconds === 0 ? <button className="primary-button" onClick={closeBreak}>Return to study <ArrowRight size={15} /></button> : <><button className="secondary-button" onClick={() => setBreakReady(false)}>Not now</button><button className="primary-button" onClick={startBreak}>Start break <ArrowRight size={15} /></button></>}</div></div></div>}
     </div>
   );
 }
@@ -664,7 +848,7 @@ function NavButton({ active, onClick, icon, label }: { active: boolean; onClick:
   return <motion.button className={`nav-button ${active ? 'active' : ''}`} onClick={onClick} whileHover={{ x: 4 }} whileTap={{ scale: .96 }}>{icon}<span>{label}</span>{active && <span className="nav-active-dot" />}</motion.button>;
 }
 
-function TaskList({ tasks, onAddPage, onToggle, onDelete }: { tasks: StudyTask[]; onAddPage: (id: string) => void; onToggle: (id: string) => void; onDelete: (id: string) => void }) {
+function TaskList({ tasks, onAddPage, onToggle, onDelete, onEdit }: { tasks: StudyTask[]; onAddPage: (id: string) => void; onToggle: (id: string) => void; onDelete: (id: string) => void; onEdit?: (task: StudyTask) => void }) {
   return (
     <div className="task-list">
       {tasks.map((task, index) => (
@@ -673,6 +857,7 @@ function TaskList({ tasks, onAddPage, onToggle, onDelete }: { tasks: StudyTask[]
           <div className="task-main"><strong>{task.title}</strong><div><span className="subject-tag">{task.subject}</span><span className="task-type">{task.kind}</span></div></div>
           <div className="task-pages"><div className="tiny-progress"><span style={{ width: `${(task.completedPages / task.pages) * 100}%` }} /></div><span>{task.completedPages}/{task.pages} pages</span></div>
           <button className="page-plus" onClick={() => onAddPage(task.id)} disabled={task.completed}><Plus size={14} /> <span>page</span></button>
+           {onEdit && <IconButton label={`Edit ${task.title}`} className="edit-button" onClick={() => onEdit(task)}><Pencil size={15} /></IconButton>}
           <IconButton label="Delete task" className="delete-button" onClick={() => onDelete(task.id)}><Trash2 size={15} /></IconButton>
         </motion.div>
       ))}

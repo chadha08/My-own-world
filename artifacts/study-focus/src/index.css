@@ -1074,3 +1074,78 @@ input:focus, select:focus, textarea:focus { border-color: #93ac7c; box-shadow: 0
   .homecoming-content p { max-width: 220px; line-height: 1.6; }
   .homecoming-orbit { width: 92vw; height: 92vw; }
 }
+
+/* Study rhythm controls */
+.focus-quote small { display: block; margin-top: 9px; color: #93a78a; font-size: 10px; letter-spacing: .04em; }
+.make-up-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 7px 9px;
+  border: 1px solid rgba(136, 174, 119, .26);
+  border-radius: 9px;
+  color: #b7d09f;
+  background: rgba(72, 104, 66, .28);
+  font-size: 10px;
+  font-weight: 800;
+}
+.distraction-live {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(145, 180, 124, .26);
+  border-radius: 12px;
+  background: rgba(62, 91, 59, .28);
+  animation: distraction-pulse 2.4s ease-in-out infinite;
+}
+.distraction-live > div { display: flex; flex-direction: column; gap: 4px; }
+.live-label { color: #9fb395; font-size: 9px; text-transform: uppercase; letter-spacing: .12em; font-weight: 800; }
+.distraction-live strong { color: #d9e6c8; font-family: var(--app-font-mono); font-size: 21px; letter-spacing: -.06em; }
+.distraction-live .primary-button { flex-shrink: 0; }
+.edit-button { color: #9ebc8c; }
+.edit-button:hover { color: #d0e3bd; background: #304930; }
+.delete-button { color: #8fa08d; }
+.task-row { grid-template-columns: 25px minmax(0, 1fr) 125px auto 30px 30px; }
+.distraction-summary { flex-wrap: wrap; row-gap: 8px; }
+.distraction-summary span { display: inline-flex; align-items: baseline; gap: 3px; }
+.break-modal strong { color: #d7e6c4; font-family: var(--app-font-mono); font-size: 36px; }
+
+/* Replace the last warm accents with living greens */
+:root {
+  --earth: #9db58a;
+  --amber: #8eae78;
+}
+.brand-mark, .homecoming-mark { color: #142018; background: #8eae78; }
+.nav-active-dot { background: #9cbd83; box-shadow: 0 0 10px rgba(156, 189, 131, .48); }
+.streak-pill { background: rgba(69, 104, 60, .25); border-color: rgba(139, 177, 116, .3); color: #bed8a5; }
+.streak-pill strong, .streak-pill span { color: #b2cb9c; }
+.streak-pill svg { color: #9cbd83; fill: #9cbd83; }
+.primary-button { color: #132018; background: #8eae78; }
+.primary-button:hover { color: #122018; background: #a6c18f; }
+.round-play-button { color: #122018; background: #8eae78; }
+.week-summary { border-color: rgba(139, 177, 116, .25); background: #293d2a; color: #b8d39f; }
+.week-summary span, .timeline-xp, .journal-mark { color: #9fbd8b; }
+.timeline-icon.stage-4, .timeline-icon.stage-5 { color: #b8d69d; background: #304a31; }
+.break-icon { color: #b9d69d; background: #304a31; }
+.xp-burst { color: #b9d69d; background: rgba(38, 65, 38, .97); border-color: rgba(139, 177, 116, .45); }
+.homecoming-overlay::after { border-color: rgba(139, 177, 116, .12); }
+.homecoming-mark { border-color: rgba(177, 210, 147, .55); box-shadow: 0 0 0 9px rgba(142, 174, 120, .08), 0 12px 32px rgba(0, 0, 0, .28); }
+.homecoming-content h2 span { color: #9cbd83; }
+.homecoming-line { background: linear-gradient(90deg, transparent, #8eae78, transparent); }
+.homecoming-orbit::after { background: #9cbd83; box-shadow: 0 0 16px 4px rgba(156, 189, 131, .32); }
+.homecoming-stars i { background: #aac995; }
+.break-modal { border-color: rgba(139, 177, 116, .22); }
+
+@keyframes distraction-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(134, 174, 113, .04); }
+  50% { box-shadow: 0 0 0 6px rgba(134, 174, 113, .05); }
+}
+
+@media (max-width: 760px) {
+  .task-row { grid-template-columns: 25px minmax(0, 1fr) auto 30px 30px; gap: 7px; }
+  .distraction-live { align-items: stretch; flex-direction: column; }
+  .distraction-live .primary-button { width: 100%; }
+}
