@@ -73,7 +73,8 @@ type StudyState = {
   streak: number;
   sessions: number;
   todayPages: number;
-  todayGoal: number;
+  todaySessions: number;
+  todayFocusMinutes: number;
   distractions: number;
   minutesLost: number;
   selectedMinutes: number;
@@ -159,7 +160,8 @@ const initialState: StudyState = {
   streak: 0,
   sessions: 0,
   todayPages: 0,
-  todayGoal: 10,
+  todaySessions: 0,
+  todayFocusMinutes: 0,
   distractions: 0,
   minutesLost: 0,
   selectedMinutes: 25,
@@ -190,6 +192,8 @@ function readState(): StudyState {
     return {
       ...initialState,
       ...parsed,
+      todaySessions: parsed.todaySessions ?? 0,
+      todayFocusMinutes: parsed.todayFocusMinutes ?? 0,
       diaryEntries: parsed.diaryEntries ?? (parsed.journal ? { [localDateKey(new Date())]: parsed.journal } : {}),
     } as StudyState;
   } catch {
@@ -234,6 +238,13 @@ function formatDurationLabel(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return seconds ? `${minutes}m ${seconds}s` : `${minutes}m`;
+}
+
+function formatStudyMinutes(totalMinutes: number) {
+  if (totalMinutes < 60) return `${totalMinutes} min`;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
 }
 
 function IconButton({
@@ -430,7 +441,10 @@ function Home() {
   const activeTask = incompleteTasks[0] ?? state.tasks[0];
   const pagesDone = state.tasks.reduce((sum, task) => sum + task.completedPages, 0);
   const pagesTotal = state.tasks.reduce((sum, task) => sum + task.pages, 0);
-  const todayProgress = Math.min(100, Math.round((state.todayPages / state.todayGoal) * 100));
+  const dailyMinimumMinutes = 180;
+  const todaySessionGoal = Math.max(1, Math.ceil(dailyMinimumMinutes / state.selectedMinutes));
+  const todayProgress = Math.min(100, Math.round((state.todayFocusMinutes / dailyMinimumMinutes) * 100));
+  const remainingFocusMinutes = Math.max(0, dailyMinimumMinutes - state.todayFocusMinutes);
   const currentDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   const selectedDateLabel = new Date(`${selectedCalendarDate}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
@@ -461,6 +475,8 @@ function Home() {
               breakRemainingSeconds: 10 * 60,
               compensationSeconds: 0,
               sessions: previous.sessions + 1,
+              todaySessions: previous.todaySessions + 1,
+              todayFocusMinutes: previous.todayFocusMinutes + previous.selectedMinutes,
               xp: previous.xp + 10,
             });
           }
@@ -531,7 +547,7 @@ function Home() {
       { ...state, timerRunning: true, remainingSeconds: baseSeconds },
       compensation > 0
         ? `Focus session started with ${formatDurationLabel(compensation)} to make up.`
-        : 'Focus session started. Your next page is enough.',
+        : 'Focus session started. Your next session is enough.',
     );
   };
 
@@ -543,7 +559,7 @@ function Home() {
       return;
     }
     commit(
-      { ...state, timerRunning: false, remainingSeconds: state.selectedMinutes * 60, compensationSeconds: 0, sessions: state.sessions + 1, xp: state.xp + 10, breakRunning: false, breakRemainingSeconds: 10 * 60 },
+      { ...state, timerRunning: false, remainingSeconds: state.selectedMinutes * 60, compensationSeconds: 0, sessions: state.sessions + 1, todaySessions: state.todaySessions + 1, todayFocusMinutes: state.todayFocusMinutes + state.selectedMinutes, xp: state.xp + 10, breakRunning: false, breakRemainingSeconds: 10 * 60 },
       'Session complete. You earned 10 XP.',
     );
     setBreakReady(true);
@@ -871,14 +887,15 @@ function Home() {
             </section>
 
             <section className="lower-grid">
-               <motion.div className="panel pages-panel" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .87, duration: .7, ease: [0.22, 1, 0.36, 1] }}>
+                <motion.div className="panel focus-goal-panel" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .87, duration: .7, ease: [0.22, 1, 0.36, 1] }}>
                 <div className="panel-heading">
-                  <div><span className="section-kicker">Today’s pages</span><h3>{state.todayPages} of {state.todayGoal} completed</h3></div>
+                   <div><span className="section-kicker">Today’s focus</span><h3>{state.todaySessions} of {todaySessionGoal} sessions</h3></div>
                   <Target size={21} className="heading-icon" />
                 </div>
                 <div className="large-progress"><span style={{ width: `${todayProgress}%` }} /></div>
-                <div className="progress-foot"><span>{todayProgress}% of today’s goal</span><span>{state.todayGoal - state.todayPages > 0 ? `${state.todayGoal - state.todayPages} to go` : 'Goal complete'}</span></div>
-                <div className="page-dots">{Array.from({ length: state.todayGoal }).map((_, index) => <span key={index} className={index < state.todayPages ? 'filled' : ''} />)}</div>
+                 <div className="progress-foot"><span>{todayProgress}% of 3 hours minimum</span><span>{remainingFocusMinutes > 0 ? `${formatStudyMinutes(remainingFocusMinutes)} to go` : 'Goal complete'}</span></div>
+                 <div className="session-dots">{Array.from({ length: todaySessionGoal }).map((_, index) => <span key={index} className={index < state.todaySessions ? 'filled' : ''} />)}</div>
+                 <div className="goal-caption"><Clock3 size={13} /> {formatStudyMinutes(state.todayFocusMinutes)} focused today · minimum 3 hours</div>
                </motion.div>
                <motion.div className="panel distraction-panel" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .98, duration: .7, ease: [0.22, 1, 0.36, 1] }}>
                 <div className="panel-heading"><div><span className="section-kicker">Stay honest</span><h3>Mind wandered?</h3></div><CircleHelp size={20} className="heading-icon" /></div>
@@ -970,7 +987,7 @@ function Home() {
         )}
 
         {view === 'settings' && (
-          <section className="page-section"><div className="page-intro-row"><div><span className="section-kicker">Your space</span><h2>Make Study Focus yours.</h2><p>These preferences stay on this device.</p></div><Settings2 size={34} className="journal-mark" /></div><div className="panel settings-panel"><label>Your name<input value={state.displayName} onChange={(event) => setState(daySnapshot({ ...state, displayName: event.target.value }))} /></label><label>Daily page goal<input type="number" min="1" value={state.todayGoal} onChange={(event) => setState(daySnapshot({ ...state, todayGoal: Math.max(1, Number(event.target.value) || 1) }))} /></label><label>Default subject<select value={state.subject} onChange={(event) => setState({ ...state, subject: event.target.value })}>{state.subjects.map((subject) => <option key={subject}>{subject}</option>)}</select></label><label>Study mode<select value={state.mode} onChange={(event) => setState({ ...state, mode: event.target.value as StudyMode })}><option>Learning</option><option>Test prep</option><option>Normal study</option></select></label></div><div className="panel subject-manager"><div className="subject-manager-heading"><div><span className="section-kicker">Your library</span><h3>Your subjects</h3><p>Create the subjects that match your life and your study track.</p></div><BookOpen size={22} /></div><div className="subject-chips">{state.subjects.map((subject, index) => <motion.div layout key={subject} className="subject-chip"><span className={`subject-swatch swatch-${index % 5}`} />{subject}<button onClick={() => removeSubject(subject)} aria-label={`Remove ${subject}`}><X size={13} /></button></motion.div>)}</div><div className="subject-add-row"><input value={newSubject} onChange={(event) => setNewSubject(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && addSubject()} placeholder="e.g. Literature, Physics, Art history" /><button className="primary-button compact" onClick={addSubject}><Plus size={15} /> Add subject</button></div></div></section>
+          <section className="page-section"><div className="page-intro-row"><div><span className="section-kicker">Your space</span><h2>Make Study Focus yours.</h2><p>These preferences stay on this device.</p></div><Settings2 size={34} className="journal-mark" /></div><div className="panel settings-panel"><label>Your name<input value={state.displayName} onChange={(event) => setState(daySnapshot({ ...state, displayName: event.target.value }))} /></label><div className="goal-setting-note"><span>Daily focus target</span><strong>3 hours minimum</strong><small>At least {todaySessionGoal} sessions at {state.selectedMinutes} minutes each.</small></div><label>Default subject<select value={state.subject} onChange={(event) => setState({ ...state, subject: event.target.value })}>{state.subjects.map((subject) => <option key={subject}>{subject}</option>)}</select></label><label>Study mode<select value={state.mode} onChange={(event) => setState({ ...state, mode: event.target.value as StudyMode })}><option>Learning</option><option>Test prep</option><option>Normal study</option></select></label></div><div className="panel subject-manager"><div className="subject-manager-heading"><div><span className="section-kicker">Your library</span><h3>Your subjects</h3><p>Create the subjects that match your life and your study track.</p></div><BookOpen size={22} /></div><div className="subject-chips">{state.subjects.map((subject, index) => <motion.div layout key={subject} className="subject-chip"><span className={`subject-swatch swatch-${index % 5}`} />{subject}<button onClick={() => removeSubject(subject)} aria-label={`Remove ${subject}`}><X size={13} /></button></motion.div>)}</div><div className="subject-add-row"><input value={newSubject} onChange={(event) => setNewSubject(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && addSubject()} placeholder="e.g. Literature, Physics, Art history" /><button className="primary-button compact" onClick={addSubject}><Plus size={15} /> Add subject</button></div></div></section>
         )}
       </motion.main>
 
