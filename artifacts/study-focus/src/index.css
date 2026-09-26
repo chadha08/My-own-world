@@ -705,28 +705,29 @@ input:focus, select:focus, textarea:focus { border-color: #88a087; box-shadow: 0
 .garden-scene-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .garden-scene-header h3 { margin: 6px 0 0; font-family: var(--app-font-serif); font-size: 24px; }
 .garden-week-pill { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 10px; color: #a96c72; background: #f5e5e1; font-size: 10px; font-weight: 800; }
-.garden-yard { position: relative; min-height: 340px; margin: 14px -8px 0; overflow: hidden; border-radius: 16px; background: radial-gradient(circle at 50% 26%, rgba(162, 189, 137, .26), transparent 34%), linear-gradient(180deg, #edf2e6 0%, #e5ecdf 57%, #d5e0cd 100%); }
-.garden-ground { position: absolute; left: 50%; bottom: 23px; width: 74%; height: 72px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(ellipse at center, rgba(90, 118, 70, .3), rgba(106, 133, 82, .06) 68%, transparent 70%); }
-.garden-center { position: absolute; z-index: 2; inset: 12px 0 0; display: grid; place-items: center; }
-.garden-flower { position: absolute; z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #c7767d; filter: drop-shadow(0 5px 5px rgba(91, 73, 53, .12)); }
-.garden-flower svg { fill: rgba(221, 139, 143, .58); stroke: #b9616b; }
-.garden-flower small { color: #897a68; font-size: 8px; font-weight: 800; }
-.rose-stem { position: absolute; z-index: -1; top: 19px; width: 3px; height: 49px; border-radius: 9px; background: #71916b; transform: rotate(9deg); transform-origin: top; }
-.garden-flower.flower-0 { left: calc(50% - 125px); bottom: 66px; transform: rotate(-8deg); }
-.garden-flower.flower-1 { left: calc(50% + 94px); bottom: 58px; transform: rotate(8deg); }
-.garden-flower.flower-2 { left: calc(50% - 77px); bottom: 40px; transform: rotate(-4deg); }
-.garden-flower.flower-3 { left: calc(50% + 51px); bottom: 38px; transform: rotate(5deg); }
-.garden-flower.flower-4 { left: calc(50% - 158px); bottom: 102px; transform: rotate(-13deg); }
-.garden-flower.flower-5 { left: calc(50% + 127px); bottom: 96px; transform: rotate(13deg); }
-.garden-flower.flower-6 { left: calc(50% - 45px); bottom: 20px; transform: rotate(-3deg); }
-.garden-flower.flower-7 { left: calc(50% + 22px); bottom: 22px; transform: rotate(4deg); }
-.garden-flower.flower-8 { left: calc(50% - 145px); bottom: 22px; transform: rotate(-18deg); }
-.garden-flower.flower-9 { left: calc(50% + 116px); bottom: 19px; transform: rotate(17deg); }
-.garden-flower.flower-10 { left: calc(50% - 34px); bottom: 91px; transform: rotate(-6deg); }
-.garden-flower.flower-11 { left: calc(50% + 15px); bottom: 96px; transform: rotate(7deg); }
+.garden-yard { position: relative; min-height: 340px; margin: 14px -8px 0; overflow: hidden; border-radius: 16px; border: 1px solid rgba(139, 193, 112, .14); background: radial-gradient(circle at 50% 42%, rgba(94, 156, 91, .2), transparent 35%), radial-gradient(circle at 50% 82%, rgba(33, 104, 52, .32), transparent 43%), linear-gradient(180deg, #12391e 0%, #0b2b18 58%, #061c10 100%); box-shadow: inset 0 0 70px rgba(2, 16, 8, .5); }
+.garden-ground { position: absolute; left: 50%; bottom: 15px; width: 57%; height: 66px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(ellipse at center, rgba(8, 45, 20, .95), rgba(19, 75, 35, .55) 52%, transparent 72%); }
+.garden-center { position: absolute; z-index: 2; inset: 12px 0 0; display: grid; place-items: end center; padding-bottom: 2px; }
+.garden-center .plant-art { transform: scale(.8); transform-origin: bottom center; }
+.garden-flower { position: absolute; z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #ff98ac; filter: drop-shadow(0 0 8px rgba(255, 137, 161, .45)) drop-shadow(0 7px 7px rgba(1, 13, 6, .45)); }
+.garden-flower svg { fill: rgba(245, 126, 151, .96); stroke: #ffc0c8; filter: drop-shadow(0 0 5px rgba(255, 135, 159, .7)); }
+.garden-flower small { color: #a9c895; font-size: 8px; font-weight: 800; }
+.rose-stem { position: absolute; z-index: -1; top: 19px; width: 4px; height: 72px; border-radius: 9px; background: linear-gradient(90deg, #376f3e, #86b45f, #2c6038); box-shadow: 0 0 6px rgba(123, 181, 91, .22); transform: rotate(9deg); transform-origin: top; }
+.garden-flower.flower-0 { left: calc(50% - 13px); bottom: 218px; transform: rotate(-2deg) scale(1.08); }
+.garden-flower.flower-1 { left: calc(50% - 100px); bottom: 174px; transform: rotate(-12deg) scale(.93); }
+.garden-flower.flower-2 { left: calc(50% + 72px); bottom: 176px; transform: rotate(12deg) scale(.93); }
+.garden-flower.flower-3 { left: calc(50% - 128px); bottom: 122px; transform: rotate(-15deg) scale(.88); }
+.garden-flower.flower-4 { left: calc(50% - 65px); bottom: 112px; transform: rotate(-6deg); }
+.garden-flower.flower-5 { left: calc(50% + 23px); bottom: 112px; transform: rotate(6deg); }
+.garden-flower.flower-6 { left: calc(50% + 87px); bottom: 124px; transform: rotate(15deg) scale(.88); }
+.garden-flower.flower-7 { left: calc(50% - 102px); bottom: 66px; transform: rotate(-15deg) scale(.92); }
+.garden-flower.flower-8 { left: calc(50% - 43px); bottom: 57px; transform: rotate(-5deg) scale(.96); }
+.garden-flower.flower-9 { left: calc(50% + 28px); bottom: 58px; transform: rotate(5deg) scale(.96); }
+.garden-flower.flower-10 { left: calc(50% + 88px); bottom: 68px; transform: rotate(15deg) scale(.92); }
+.garden-flower.flower-11 { left: calc(50% - 10px); bottom: 34px; transform: rotate(2deg) scale(.82); }
 .garden-crowded .garden-flower small { display: none; }
 .garden-empty { position: absolute; inset: auto 0 49px; display: flex; justify-content: center; align-items: center; gap: 7px; color: #7e9278; font-size: 10px; }
-.garden-caption { margin: 14px 0 0; color: #7b8978; font-size: 11px; line-height: 1.6; }
+.garden-caption { margin: 14px 0 0; color: #9cb394; font-size: 11px; line-height: 1.6; }
 .garden-progress { background: linear-gradient(145deg, #e8f0e3, #f4f7ef); border-color: rgba(117, 151, 105, .22); }
 .garden-progress h3 { margin: 7px 0 25px; font-family: var(--app-font-serif); font-size: 27px; color: #3e5e3c; }
 .garden-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
