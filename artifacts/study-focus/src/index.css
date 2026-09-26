@@ -699,6 +699,37 @@ input:focus, select:focus, textarea:focus { border-color: #88a087; box-shadow: 0
 .plant-xp-bar { height: 8px; background: rgba(89, 119, 78, .16); }
 .plant-xp-bar span { background: #658c61; }
 .history-plant-copy small { color: #72856f; display: block; margin-top: 7px; font-size: 10px; }
+.garden-layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(250px, .75fr); gap: 17px; }
+.garden-scene, .garden-progress { padding: 23px; }
+.garden-scene { overflow: hidden; }
+.garden-scene-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.garden-scene-header h3 { margin: 6px 0 0; font-family: var(--app-font-serif); font-size: 24px; }
+.garden-week-pill { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 10px; color: #a96c72; background: #f5e5e1; font-size: 10px; font-weight: 800; }
+.garden-yard { position: relative; min-height: 340px; margin: 14px -8px 0; overflow: hidden; border-radius: 16px; background: radial-gradient(circle at 50% 26%, rgba(162, 189, 137, .26), transparent 34%), linear-gradient(180deg, #edf2e6 0%, #e5ecdf 57%, #d5e0cd 100%); }
+.garden-ground { position: absolute; left: 50%; bottom: 23px; width: 74%; height: 72px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(ellipse at center, rgba(90, 118, 70, .3), rgba(106, 133, 82, .06) 68%, transparent 70%); }
+.garden-center { position: absolute; z-index: 2; inset: 12px 0 0; display: grid; place-items: center; }
+.garden-flower { position: absolute; z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #c7767d; filter: drop-shadow(0 5px 5px rgba(91, 73, 53, .12)); }
+.garden-flower svg { fill: rgba(221, 139, 143, .58); stroke: #b9616b; }
+.garden-flower small { color: #897a68; font-size: 8px; font-weight: 800; }
+.rose-stem { position: absolute; z-index: -1; top: 19px; width: 3px; height: 49px; border-radius: 9px; background: #71916b; transform: rotate(9deg); transform-origin: top; }
+.garden-flower.flower-0 { left: calc(50% - 125px); bottom: 66px; transform: rotate(-8deg); }
+.garden-flower.flower-1 { left: calc(50% + 94px); bottom: 58px; transform: rotate(8deg); }
+.garden-flower.flower-2 { left: calc(50% - 77px); bottom: 40px; transform: rotate(-4deg); }
+.garden-flower.flower-3 { left: calc(50% + 51px); bottom: 38px; transform: rotate(5deg); }
+.garden-empty { position: absolute; inset: auto 0 49px; display: flex; justify-content: center; align-items: center; gap: 7px; color: #7e9278; font-size: 10px; }
+.garden-caption { margin: 14px 0 0; color: #7b8978; font-size: 11px; line-height: 1.6; }
+.garden-progress { background: linear-gradient(145deg, #e8f0e3, #f4f7ef); border-color: rgba(117, 151, 105, .22); }
+.garden-progress h3 { margin: 7px 0 25px; font-family: var(--app-font-serif); font-size: 27px; color: #3e5e3c; }
+.garden-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.garden-stats div { padding: 11px 8px; border-radius: 11px; background: rgba(255, 255, 255, .52); text-align: center; }
+.garden-stats strong, .garden-stats span { display: block; }
+.garden-stats strong { color: #496e45; font-size: 22px; letter-spacing: -.05em; }
+.garden-stats span { margin-top: 3px; color: #7e9179; font-size: 9px; }
+.garden-week-track { display: flex; justify-content: space-between; gap: 5px; margin: 29px 0 15px; }
+.garden-week-track span { width: 25px; height: 25px; display: grid; place-items: center; border: 1px solid #c4d2bd; border-radius: 50%; color: #94a58e; font-size: 9px; }
+.garden-week-track span.is-grown { border-color: #7e9f74; background: #8eae78; color: #f8fbf1; box-shadow: 0 4px 8px rgba(77, 112, 70, .16); }
+.garden-progress p { min-height: 38px; margin: 0 0 21px; color: #71836e; font-size: 11px; line-height: 1.55; }
+.garden-progress .primary-button { color: #17301d; background: #8eae78; }
 .timeline-panel { padding: 23px 24px; }
 .timeline { margin-top: 22px; }
 .timeline-row { display: grid; grid-template-columns: 31px 80px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid #edf0e9; }

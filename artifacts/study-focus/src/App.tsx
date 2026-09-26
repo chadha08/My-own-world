@@ -41,7 +41,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 
-type View = 'overview' | 'tasks' | 'calendar' | 'history' | 'journal' | 'settings';
+type View = 'overview' | 'tasks' | 'calendar' | 'garden' | 'history' | 'journal' | 'settings';
 type StudyMode = 'Learning' | 'Test prep' | 'Normal study';
 
 type StudyTask = {
@@ -58,12 +58,21 @@ type StudyTask = {
 type PlantSnapshot = {
   date: string;
   label: string;
+  dayNumber?: number;
+  weekNumber?: number;
   xp: number;
   streak: number;
   pages: number;
   sessions: number;
+  focusMinutes?: number;
   stage: number;
   note: string;
+};
+
+type GardenFlower = {
+  id: string;
+  weekNumber: number;
+  plantedOn: string;
 };
 
 type StudyState = {
@@ -90,27 +99,26 @@ type StudyState = {
   diaryEntries: Record<string, string>;
   displayName: string;
   history: PlantSnapshot[];
+  dailyRecords: Record<string, PlantSnapshot>;
+  studyDay: number;
+  weekNumber: number;
+  lastStudyDate: string | null;
+  gardenFlowers: GardenFlower[];
   distractionRunning: boolean;
   distractionReason: string;
   distractionStartedAt: number | null;
   lostSeconds: number;
   compensationSeconds: number;
+  timerStartedAt: number | null;
+  timerEndsAt: number | null;
+  breakStartedAt: number | null;
+  breakEndsAt: number | null;
 };
 
 const queryClient = new QueryClient();
-const storageKey = 'study-focus-state-v3';
+const storageKey = 'my-own-world-state-v2';
 
 const defaultTasks: StudyTask[] = [];
-
-const defaultHistory: PlantSnapshot[] = [
-  { date: 'mon', label: 'Mon', xp: 0, streak: 0, pages: 0, sessions: 0, stage: 1, note: 'A fresh start.' },
-  { date: 'tue', label: 'Tue', xp: 0, streak: 0, pages: 0, sessions: 0, stage: 1, note: 'Ready when you are.' },
-  { date: 'wed', label: 'Wed', xp: 0, streak: 0, pages: 0, sessions: 0, stage: 1, note: 'The garden is waiting.' },
-  { date: 'thu', label: 'Thu', xp: 0, streak: 0, pages: 0, sessions: 0, stage: 1, note: 'No sessions yet.' },
-  { date: 'fri', label: 'Fri', xp: 0, streak: 0, pages: 0, sessions: 0, stage: 1, note: 'Your first page can start today.' },
-  { date: 'sat', label: 'Sat', xp: 0, streak: 0, pages: 0, sessions: 0, stage: 1, note: 'A quiet beginning.' },
-  { date: 'sun', label: 'Sun', xp: 0, streak: 0, pages: 0, sessions: 0, stage: 1, note: 'Today is yours to grow.' },
-];
 
 const dailyQuotes = [
   { text: 'Small steps still move you forward.', author: 'Study Focus' },
@@ -176,12 +184,21 @@ const initialState: StudyState = {
   calendarNotes: {},
   diaryEntries: {},
   displayName: 'Alex',
-  history: defaultHistory,
+  history: [],
+  dailyRecords: {},
+  studyDay: 0,
+  weekNumber: 1,
+  lastStudyDate: null,
+  gardenFlowers: [],
   distractionRunning: false,
   distractionReason: '',
   distractionStartedAt: null,
   lostSeconds: 0,
   compensationSeconds: 0,
+  timerStartedAt: null,
+  timerEndsAt: null,
+  breakStartedAt: null,
+  breakEndsAt: null,
 };
 
 function readState(): StudyState {
@@ -192,8 +209,18 @@ function readState(): StudyState {
     return {
       ...initialState,
       ...parsed,
+      history: parsed.history ?? [],
+      dailyRecords: parsed.dailyRecords ?? {},
+      studyDay: parsed.studyDay ?? 0,
+      weekNumber: parsed.weekNumber ?? 1,
+      lastStudyDate: parsed.lastStudyDate ?? null,
+      gardenFlowers: parsed.gardenFlowers ?? [],
       todaySessions: parsed.todaySessions ?? 0,
       todayFocusMinutes: parsed.todayFocusMinutes ?? 0,
+      timerStartedAt: parsed.timerStartedAt ?? null,
+      timerEndsAt: parsed.timerEndsAt ?? null,
+      breakStartedAt: parsed.breakStartedAt ?? null,
+      breakEndsAt: parsed.breakEndsAt ?? null,
       diaryEntries: parsed.diaryEntries ?? (parsed.journal ? { [localDateKey(new Date())]: parsed.journal } : {}),
     } as StudyState;
   } catch {
@@ -209,22 +236,72 @@ function getPlantStage(xp: number, streak: number) {
   return 1;
 }
 
-function daySnapshot(state: StudyState): StudyState {
-  const date = new Date();
-  const key = date.toISOString().slice(0, 10);
-  const label = date.toLocaleDateString('en-US', { weekday: 'short' });
+function beginStudyDay(state: StudyState, dateKey: string): StudyState {
+  if (state.lastStudyDate === dateKey) return state;
+  const startingNewWeek = state.studyDay >= 7;
+  const nextWeek = state.weekNumber + (startingNewWeek ? 1 : 0);
+  const nextDay = state.studyDay === 0 || startingNewWeek ? 1 : state.studyDay + 1;
+  const completedWeek = startingNewWeek ? state.weekNumber : null;
+  const gardenFlowers = completedWeek && !state.gardenFlowers.some((flower) => flower.weekNumber === completedWeek)
+    ? [...state.gardenFlowers, { id: `${completedWeek}-${dateKey}`, weekNumber: completedWeek, plantedOn: dateKey }]
+    : state.gardenFlowers;
+  return {
+    ...state,
+    studyDay: nextDay,
+    weekNumber: nextWeek,
+    streak: nextDay,
+    lastStudyDate: dateKey,
+    todayPages: 0,
+    todaySessions: 0,
+    todayFocusMinutes: 0,
+    gardenFlowers,
+  };
+}
+
+function daySnapshot(state: StudyState, dateKey = state.lastStudyDate ?? localDateKey(new Date())): StudyState {
+  if (!state.lastStudyDate) return { ...state, history: [], dailyRecords: {} };
+  const date = new Date(`${dateKey}T12:00:00`);
+  const label = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   const nextSnapshot: PlantSnapshot = {
-    date: key,
+    date: dateKey,
     label,
+    dayNumber: state.studyDay,
+    weekNumber: state.weekNumber,
     xp: state.xp,
     streak: state.streak,
     pages: state.todayPages,
     sessions: state.sessions,
+    focusMinutes: state.todayFocusMinutes,
     stage: getPlantStage(state.xp, state.streak),
-    note: state.todayPages > 0 ? 'You showed up for yourself today.' : 'Your next page is waiting.',
+    note: state.todaySessions > 0 ? 'You showed up for yourself today.' : 'Your next session is waiting.',
   };
-  const history = state.history.filter((item) => item.date !== key);
-  return { ...state, history: [...history, nextSnapshot].slice(-7) };
+  const dailyRecords = { ...state.dailyRecords, [dateKey]: nextSnapshot };
+  const history = Object.values(dailyRecords).sort((a, b) => a.date.localeCompare(b.date)).slice(-7);
+  return { ...state, history, dailyRecords };
+}
+
+function completeFocusSession(state: StudyState, completedAt = Date.now()): StudyState {
+  const dateKey = state.timerStartedAt ? localDateKey(new Date(state.timerStartedAt)) : localDateKey(new Date(completedAt));
+  const activeState = beginStudyDay(state, dateKey);
+  const shouldPlantRose = activeState.studyDay === 7 && activeState.todaySessions === 0;
+  const gardenFlowers = shouldPlantRose
+    ? [...activeState.gardenFlowers, { id: `${activeState.weekNumber}-${dateKey}`, weekNumber: activeState.weekNumber, plantedOn: dateKey }]
+    : activeState.gardenFlowers;
+  return daySnapshot({
+    ...activeState,
+    timerRunning: false,
+    remainingSeconds: 0,
+    timerStartedAt: null,
+    timerEndsAt: null,
+    breakRunning: false,
+    breakRemainingSeconds: 10 * 60,
+    compensationSeconds: 0,
+    sessions: activeState.sessions + 1,
+    todaySessions: activeState.todaySessions + 1,
+    todayFocusMinutes: activeState.todayFocusMinutes + activeState.selectedMinutes,
+    gardenFlowers,
+    xp: activeState.xp + 10,
+  }, dateKey);
 }
 
 function formatTime(totalSeconds: number) {
@@ -461,50 +538,56 @@ function Home() {
   }, [state]);
 
   useEffect(() => {
+    const syncFromAnotherTab = (event: StorageEvent) => {
+      if (event.key === storageKey && event.newValue) setState(readState());
+    };
+    window.addEventListener('storage', syncFromAnotherTab);
+    return () => window.removeEventListener('storage', syncFromAnotherTab);
+  }, []);
+
+  useEffect(() => {
+    if (state.breakRunning || state.breakRemainingSeconds === 0) setBreakReady(true);
+  }, [state.breakRunning, state.breakRemainingSeconds]);
+
+  useEffect(() => {
     if (!state.timerRunning && !state.breakRunning) return undefined;
-    const interval = window.setInterval(() => {
+    const reconcileTimers = () => {
+      const now = Date.now();
+      setClockNow(now);
       setState((previous) => {
         if (previous.timerRunning) {
-          if (previous.remainingSeconds <= 1) {
+          const timerEndsAt = previous.timerEndsAt ?? now + previous.remainingSeconds * 1000;
+          const remainingSeconds = Math.max(0, Math.ceil((timerEndsAt - now) / 1000));
+          if (remainingSeconds <= 0) {
             setBreakReady(true);
-            return daySnapshot({
-              ...previous,
-              remainingSeconds: 0,
-              timerRunning: false,
-              breakRunning: false,
-              breakRemainingSeconds: 10 * 60,
-              compensationSeconds: 0,
-              sessions: previous.sessions + 1,
-              todaySessions: previous.todaySessions + 1,
-              todayFocusMinutes: previous.todayFocusMinutes + previous.selectedMinutes,
-              xp: previous.xp + 10,
-            });
+            breakCompletionNotified.current = false;
+            return completeFocusSession(previous, now);
           }
-          const nextRemaining = previous.remainingSeconds - 1;
-          return {
-            ...previous,
-            remainingSeconds: nextRemaining,
-            compensationSeconds: previous.compensationSeconds > 0 && nextRemaining <= previous.selectedMinutes * 60 ? 0 : previous.compensationSeconds,
-          };
+          if (previous.remainingSeconds === remainingSeconds && previous.timerEndsAt === timerEndsAt) return previous;
+          return { ...previous, remainingSeconds, timerEndsAt };
         }
         if (previous.breakRunning) {
-          if (previous.breakRemainingSeconds <= 1) {
+          const breakEndsAt = previous.breakEndsAt ?? now + previous.breakRemainingSeconds * 1000;
+          const breakRemainingSeconds = Math.max(0, Math.ceil((breakEndsAt - now) / 1000));
+          if (breakRemainingSeconds <= 0) {
+            const breakElapsed = previous.breakStartedAt ? Math.min(10 * 60, Math.max(0, Math.floor((now - previous.breakStartedAt) / 1000))) : 0;
             return {
               ...previous,
               breakRemainingSeconds: 0,
               breakRunning: false,
-              breakSecondsToday: previous.breakSecondsToday + 1,
+              breakStartedAt: null,
+              breakEndsAt: null,
+              breakSecondsToday: previous.breakSecondsToday + breakElapsed,
             };
           }
-          return {
-            ...previous,
-            breakRemainingSeconds: previous.breakRemainingSeconds - 1,
-            breakSecondsToday: previous.breakSecondsToday + 1,
-          };
+          if (previous.breakRemainingSeconds === breakRemainingSeconds && previous.breakEndsAt === breakEndsAt) return previous;
+          return { ...previous, breakRemainingSeconds, breakEndsAt };
         }
         return previous;
       });
-    }, 1000);
+    };
+    reconcileTimers();
+    const interval = window.setInterval(reconcileTimers, 1000);
     return () => window.clearInterval(interval);
   }, [state.timerRunning, state.breakRunning]);
 
@@ -539,19 +622,21 @@ function Home() {
 
   const startTimer = () => {
     if (state.breakRunning || state.distractionRunning) return;
-    const compensation = state.compensationSeconds;
-    const baseSeconds = state.remainingSeconds === state.selectedMinutes * 60
-      ? state.selectedMinutes * 60 + compensation
-      : state.remainingSeconds;
+    const now = Date.now();
+    const activeState = beginStudyDay(state, localDateKey(new Date(now)));
+    const compensation = activeState.compensationSeconds;
+    const baseSeconds = activeState.remainingSeconds === activeState.selectedMinutes * 60
+      ? activeState.selectedMinutes * 60 + compensation
+      : activeState.remainingSeconds;
     commit(
-      { ...state, timerRunning: true, remainingSeconds: baseSeconds },
+      { ...activeState, timerRunning: true, remainingSeconds: baseSeconds, timerStartedAt: now, timerEndsAt: now + baseSeconds * 1000 },
       compensation > 0
         ? `Focus session started with ${formatDurationLabel(compensation)} to make up.`
         : 'Focus session started. Your next session is enough.',
     );
   };
 
-  const resetTimer = () => commit({ ...state, timerRunning: false, remainingSeconds: state.selectedMinutes * 60 + state.compensationSeconds });
+  const resetTimer = () => commit({ ...state, timerRunning: false, remainingSeconds: state.selectedMinutes * 60 + state.compensationSeconds, timerStartedAt: null, timerEndsAt: null });
 
   const finishSession = () => {
     if (state.distractionRunning) {
@@ -559,7 +644,7 @@ function Home() {
       return;
     }
     commit(
-      { ...state, timerRunning: false, remainingSeconds: state.selectedMinutes * 60, compensationSeconds: 0, sessions: state.sessions + 1, todaySessions: state.todaySessions + 1, todayFocusMinutes: state.todayFocusMinutes + state.selectedMinutes, xp: state.xp + 10, breakRunning: false, breakRemainingSeconds: 10 * 60 },
+      { ...completeFocusSession({ ...state, timerRunning: false, remainingSeconds: state.selectedMinutes * 60, compensationSeconds: 0, timerStartedAt: state.timerStartedAt ?? Date.now(), timerEndsAt: null, breakRunning: false, breakRemainingSeconds: 10 * 60 }) },
       'Session complete. You earned 10 XP.',
     );
     setBreakReady(true);
@@ -571,8 +656,10 @@ function Home() {
     if ('Notification' in window && Notification.permission === 'default') {
       void Notification.requestPermission();
     }
+    const now = Date.now();
+    const remainingSeconds = state.breakRemainingSeconds || 10 * 60;
     commit(
-      { ...state, timerRunning: false, breakRunning: true, breakRemainingSeconds: state.breakRemainingSeconds || 10 * 60 },
+      { ...state, timerRunning: false, timerStartedAt: null, timerEndsAt: null, breakRunning: true, breakRemainingSeconds: remainingSeconds, breakStartedAt: now, breakEndsAt: now + remainingSeconds * 1000 },
       'Your 10-minute break has started. We will let you know when it ends.',
     );
   };
@@ -580,7 +667,7 @@ function Home() {
   const closeBreak = () => {
     setBreakReady(false);
     if (!state.breakRunning) {
-      commit({ ...state, breakRemainingSeconds: 10 * 60 }, 'Back to your study garden.');
+      commit({ ...state, breakRemainingSeconds: 10 * 60, breakStartedAt: null, breakEndsAt: null }, 'Back to your study garden.');
     }
   };
 
@@ -717,6 +804,8 @@ function Home() {
     commit({
       ...state,
       timerRunning: false,
+      timerStartedAt: null,
+      timerEndsAt: null,
       distractions: state.distractions + 1,
       distractionReason: reason,
       distractionRunning: true,
@@ -744,6 +833,7 @@ function Home() {
     overview: 'Good morning',
     tasks: 'Your tasks',
     calendar: 'Your calendar',
+    garden: 'My garden',
     history: 'Plant history',
     journal: 'Daily diary',
     settings: 'Preferences',
@@ -780,6 +870,7 @@ function Home() {
           <NavButton active={view === 'overview'} onClick={() => setView('overview')} icon={<BarChart3 size={17} />} label="Overview" />
           <NavButton active={view === 'tasks'} onClick={() => setView('tasks')} icon={<ListChecks size={17} />} label="My plan" />
            <NavButton active={view === 'calendar'} onClick={() => setView('calendar')} icon={<CalendarDays size={17} />} label="Calendar" />
+           <NavButton active={view === 'garden'} onClick={() => setView('garden')} icon={<Sprout size={17} />} label="My garden" />
           <NavButton active={view === 'history'} onClick={() => setView('history')} icon={<Flower2 size={17} />} label="Plant history" />
           <NavButton active={view === 'journal'} onClick={() => setView('journal')} icon={<NotebookPen size={17} />} label="Daily diary" />
           <div className="nav-label nav-label-spaced">Personal</div>
@@ -808,7 +899,7 @@ function Home() {
             <h1>{pageTitle}, <em>{state.displayName}.</em></h1>
           </div>
           <div className="topbar-actions">
-            <div className="streak-pill"><Flame size={15} /><strong>{state.streak}</strong><span>day streak</span></div>
+           <div className="streak-pill"><Flame size={15} /><strong>{state.studyDay}</strong><span>day of 7</span></div>
             <button className="primary-button compact" onClick={() => { setView('overview'); setTimeout(() => document.getElementById('focus-card')?.scrollIntoView({ behavior: 'smooth' }), 50); }}>
               <Play size={15} fill="currentColor" /> Start focus
             </button>
@@ -852,7 +943,7 @@ function Home() {
                     <div className="timer-controls">
                       <IconButton label="Reset timer" onClick={resetTimer}><RotateCcw size={17} /></IconButton>
                       {state.timerRunning ? (
-                        <button className="round-play-button" onClick={() => commit({ ...state, timerRunning: false }, 'Session paused.') }><Pause size={19} fill="currentColor" /></button>
+                        <button className="round-play-button" onClick={() => commit({ ...state, timerRunning: false, timerStartedAt: null, timerEndsAt: null }, 'Session paused.') }><Pause size={19} fill="currentColor" /></button>
                       ) : (
                         <button className="round-play-button" onClick={startTimer} disabled={state.breakRunning || state.distractionRunning}><Play size={19} fill="currentColor" /></button>
                       )}
@@ -884,7 +975,7 @@ function Home() {
                   <button className="circle-link" onClick={() => setView('history')} aria-label="View plant history"><ArrowRight size={16} /></button>
                 </div>
                 <PlantIllustration stage={stage} />
-                <div className="plant-stats"><span><strong>{state.xp}</strong> XP</span><span><strong>{state.streak}</strong> days</span><span><strong>{state.sessions}</strong> sessions</span></div>
+                <div className="plant-stats"><span><strong>{state.xp}</strong> XP</span><span><strong>{state.studyDay}</strong> day</span><span><strong>{state.sessions}</strong> sessions</span></div>
               </motion.div>
             </section>
 
@@ -968,9 +1059,35 @@ function Home() {
 
         {view === 'history' && (
           <section className="page-section">
-            <div className="page-intro-row"><div><span className="section-kicker">Weekly reflection</span><h2>The story of your plant.</h2><p>Look back at what helped your focus grow this week.</p></div><div className="week-summary"><Flame size={16} /><strong>{state.streak} days</strong><span>current streak</span></div></div>
-            <div className="history-layout"><div className="panel history-plant-card"><PlantIllustration stage={stage} /><div className="history-plant-copy"><span className="section-kicker">Current chapter</span><h3>{stage >= 4 ? 'You are blooming.' : 'You are putting down roots.'}</h3><p>Your plant is at stage {stage}. Every page, session, and honest restart becomes part of its story.</p><div className="plant-xp-bar"><span style={{ width: `${Math.min(100, (state.xp / 650) * 100)}%` }} /></div><small>{state.xp} / 650 XP until full bloom</small></div></div><div className="panel timeline-panel"><div className="panel-heading"><div><span className="section-kicker">Last 7 days</span><h3>Growth timeline</h3></div><CalendarDays size={20} className="heading-icon" /></div><div className="timeline">{state.history.map((item) => <div className="timeline-row" key={`${item.date}-${item.label}`}><div className={`timeline-icon stage-${item.stage}`}>{item.stage >= 4 ? <Flower2 size={16} /> : item.stage >= 2 ? <Sprout size={17} /> : <span />}</div><div className="timeline-date"><strong>{item.label}</strong><small>{item.pages} pages · {item.sessions} sessions</small></div><div className="timeline-note"><span>Stage {item.stage}</span><small>{item.note}</small></div><span className="timeline-xp">+{Math.max(0, item.xp - 100)} XP</span></div>)}</div></div></div>
+             <div className="page-intro-row"><div><span className="section-kicker">Weekly reflection</span><h2>The story of your plant.</h2><p>Look back at what helped your focus grow this week.</p></div><div className="week-summary"><Flame size={16} /><strong>{state.studyDay} days</strong><span>week {state.weekNumber}</span></div></div>
+             <div className="history-layout"><div className="panel history-plant-card"><PlantIllustration stage={stage} /><div className="history-plant-copy"><span className="section-kicker">Current chapter</span><h3>{stage >= 4 ? 'You are blooming.' : 'You are putting down roots.'}</h3><p>Your plant is at stage {stage}. Every focused day, session, and honest restart becomes part of its story.</p><div className="plant-xp-bar"><span style={{ width: `${Math.min(100, (state.xp / 650) * 100)}%` }} /></div><small>{state.xp} / 650 XP until full bloom</small></div></div><div className="panel timeline-panel"><div className="panel-heading"><div><span className="section-kicker">Your study days</span><h3>Day-by-day growth</h3></div><CalendarDays size={20} className="heading-icon" /></div><div className="timeline">{state.history.length === 0 ? <div className="empty-state"><Sprout size={24} /><strong>Your first study day is waiting.</strong><span>Start a focus session and it will appear here.</span></div> : state.history.map((item) => <div className="timeline-row" key={`${item.date}-${item.label}`}><div className={`timeline-icon stage-${item.stage}`}>{item.stage >= 4 ? <Flower2 size={16} /> : item.stage >= 2 ? <Sprout size={17} /> : <span />}</div><div className="timeline-date"><strong>Day {item.dayNumber ?? 0}</strong><small>{item.label} · Week {item.weekNumber ?? 1}</small></div><div className="timeline-note"><span>{item.focusMinutes ?? 0} min · {item.sessions} sessions</span><small>{item.note}</small></div><span className="timeline-xp">+{item.xp} XP</span></div>)}</div></div></div>
             <div className="weekly-insights"><div className="insight-card"><BarChart3 size={18} /><span>Total pages</span><strong>{state.history.reduce((sum, item) => sum + item.pages, 0)}</strong><small>this week</small></div><div className="insight-card"><Clock3 size={18} /><span>Focus sessions</span><strong>{state.history.reduce((sum, item) => sum + item.sessions, 0)}</strong><small>completed</small></div><div className="insight-card"><Sparkles size={18} /><span>XP earned</span><strong>{state.xp}</strong><small>plant energy</small></div></div>
+          </section>
+        )}
+
+        {view === 'garden' && (
+          <section className="page-section">
+            <div className="page-intro-row"><div><span className="section-kicker">My garden</span><h2>One little world, growing with you.</h2><p>Your plant stays in one place, and every completed week adds a rose beside it.</p></div><Sprout size={34} className="journal-mark" /></div>
+            <div className="garden-layout">
+              <div className="panel garden-scene">
+                <div className="garden-scene-header"><div><span className="section-kicker">Your shared patch</span><h3>Week {state.weekNumber} · Day {state.studyDay} of 7</h3></div><span className="garden-week-pill"><Flower2 size={14} /> {state.gardenFlowers.length} roses</span></div>
+                <div className="garden-yard">
+                  <div className="garden-ground" />
+                  <div className="garden-center"><PlantIllustration stage={stage} /></div>
+                  {state.gardenFlowers.map((flower, index) => <motion.div className={`garden-flower flower-${index % 4}`} key={flower.id} initial={{ opacity: 0, scale: 0, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ delay: index * .08, type: 'spring', stiffness: 170, damping: 13 }} title={`Rose from week ${flower.weekNumber}`}><span className="rose-stem" /><Flower2 size={27} /><small>Week {flower.weekNumber}</small></motion.div>)}
+                  {state.gardenFlowers.length === 0 && <div className="garden-empty"><Sprout size={20} /><span>Your first week will grow the first rose.</span></div>}
+                </div>
+                <p className="garden-caption">Every seventh study day adds one more rose beside the same plant, making a small bouquet over time.</p>
+              </div>
+              <div className="panel garden-progress">
+                <span className="section-kicker">Your rhythm</span>
+                <h3>Keep showing up.</h3>
+                <div className="garden-stats"><div><strong>{state.studyDay}</strong><span>day of 7</span></div><div><strong>{state.weekNumber}</strong><span>week</span></div><div><strong>{state.xp}</strong><span>XP</span></div></div>
+                <div className="garden-week-track">{Array.from({ length: 7 }).map((_, index) => <span key={index} className={index < state.studyDay ? 'is-grown' : ''}>{index + 1}</span>)}</div>
+                <p>{state.studyDay === 0 ? 'Your first study day is waiting.' : state.studyDay === 7 ? 'Seven days complete. Your rose is blooming.' : `${7 - state.studyDay} study days until this week’s rose.`}</p>
+                <button className="primary-button compact" onClick={() => setView('overview')}><Play size={14} fill="currentColor" /> Go to focus</button>
+              </div>
+            </div>
           </section>
         )}
 
