@@ -228,6 +228,56 @@ function readState(): StudyState {
   }
 }
 
+function createGardenPreviewState(state: StudyState): StudyState {
+  const today = localDateKey(new Date());
+  const gardenFlowers = Array.from({ length: 12 }, (_, index) => {
+    const weekNumber = index + 1;
+    return {
+      id: `garden-demo-${weekNumber}`,
+      weekNumber,
+      plantedOn: shiftDateKey(today, (weekNumber - 12) * 7),
+    };
+  });
+  const history = Array.from({ length: 7 }, (_, index) => {
+    const date = shiftDateKey(today, index - 6);
+    return {
+      date,
+      label: new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+      dayNumber: index + 1,
+      weekNumber: 12,
+      xp: 2180 + index * 40,
+      streak: index + 1,
+      pages: 18 + index * 3,
+      sessions: 72 + index * 2,
+      focusMinutes: 150 + index * 5,
+      stage: 5,
+      note: 'A steady day in your growing rhythm.',
+    };
+  });
+
+  return {
+    ...state,
+    xp: 2460,
+    streak: 7,
+    sessions: 86,
+    todayPages: 36,
+    todaySessions: 7,
+    todayFocusMinutes: 180,
+    studyDay: 7,
+    weekNumber: 13,
+    lastStudyDate: today,
+    gardenFlowers,
+    history,
+    dailyRecords: Object.fromEntries(history.map((item) => [item.date, item])),
+    timerRunning: false,
+    breakRunning: false,
+    timerStartedAt: null,
+    timerEndsAt: null,
+    breakStartedAt: null,
+    breakEndsAt: null,
+  };
+}
+
 function getPlantStage(xp: number, streak: number) {
   if (xp >= 650 || streak >= 14) return 5;
   if (xp >= 350 || streak >= 7) return 4;
@@ -466,8 +516,12 @@ function PlantIllustration({ stage, small = false }: { stage: number; small?: bo
 }
 
 function Home() {
-  const [view, setView] = useState<View>('overview');
-  const [state, setState] = useState<StudyState>(() => readState());
+  const gardenDemo = new URLSearchParams(window.location.search).has('garden-demo');
+  const [view, setView] = useState<View>(() => gardenDemo ? 'garden' : 'overview');
+  const [state, setState] = useState<StudyState>(() => {
+    const savedState = readState();
+    return gardenDemo ? createGardenPreviewState(savedState) : savedState;
+  });
   const [homecoming, setHomecoming] = useState(() => !new URLSearchParams(window.location.search).has('skip-intro'));
   const [notice, setNotice] = useState('');
   const [breakReady, setBreakReady] = useState(false);
@@ -534,16 +588,17 @@ function Home() {
   };
 
   useEffect(() => {
-    window.localStorage.setItem(storageKey, JSON.stringify(state));
-  }, [state]);
+    if (!gardenDemo) window.localStorage.setItem(storageKey, JSON.stringify(state));
+  }, [gardenDemo, state]);
 
   useEffect(() => {
+    if (gardenDemo) return undefined;
     const syncFromAnotherTab = (event: StorageEvent) => {
       if (event.key === storageKey && event.newValue) setState(readState());
     };
     window.addEventListener('storage', syncFromAnotherTab);
     return () => window.removeEventListener('storage', syncFromAnotherTab);
-  }, []);
+  }, [gardenDemo]);
 
   useEffect(() => {
     if (state.breakRunning || state.breakRemainingSeconds === 0) setBreakReady(true);
@@ -1069,12 +1124,12 @@ function Home() {
           <section className="page-section">
             <div className="page-intro-row"><div><span className="section-kicker">My garden</span><h2>One little world, growing with you.</h2><p>Your plant stays in one place, and every completed week adds a rose beside it.</p></div><Sprout size={34} className="journal-mark" /></div>
             <div className="garden-layout">
-              <div className="panel garden-scene">
+              <div className={`panel garden-scene ${state.gardenFlowers.length > 4 ? 'garden-crowded' : ''}`}>
                 <div className="garden-scene-header"><div><span className="section-kicker">Your shared patch</span><h3>Week {state.weekNumber} · Day {state.studyDay} of 7</h3></div><span className="garden-week-pill"><Flower2 size={14} /> {state.gardenFlowers.length} roses</span></div>
                 <div className="garden-yard">
                   <div className="garden-ground" />
                   <div className="garden-center"><PlantIllustration stage={stage} /></div>
-                  {state.gardenFlowers.map((flower, index) => <motion.div className={`garden-flower flower-${index % 4}`} key={flower.id} initial={{ opacity: 0, scale: 0, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ delay: index * .08, type: 'spring', stiffness: 170, damping: 13 }} title={`Rose from week ${flower.weekNumber}`}><span className="rose-stem" /><Flower2 size={27} /><small>Week {flower.weekNumber}</small></motion.div>)}
+                  {state.gardenFlowers.map((flower, index) => <motion.div className={`garden-flower flower-${index % 12}`} key={flower.id} initial={{ opacity: 0, scale: 0, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ delay: index * .08, type: 'spring', stiffness: 170, damping: 13 }} title={`Rose from week ${flower.weekNumber}`}><span className="rose-stem" /><Flower2 size={27} /><small>Week {flower.weekNumber}</small></motion.div>)}
                   {state.gardenFlowers.length === 0 && <div className="garden-empty"><Sprout size={20} /><span>Your first week will grow the first rose.</span></div>}
                 </div>
                 <p className="garden-caption">Every seventh study day adds one more rose beside the same plant, making a small bouquet over time.</p>
