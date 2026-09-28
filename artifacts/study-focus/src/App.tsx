@@ -65,6 +65,7 @@ type PlantSnapshot = {
   pages: number;
   sessions: number;
   focusMinutes?: number;
+  focusHours?: number;
   stage: number;
   note: string;
 };
@@ -84,6 +85,7 @@ type StudyState = {
   todayPages: number;
   todaySessions: number;
   todayFocusMinutes: number;
+  todayXp: number;
   distractions: number;
   minutesLost: number;
   selectedMinutes: number;
@@ -170,6 +172,7 @@ const initialState: StudyState = {
   todayPages: 0,
   todaySessions: 0,
   todayFocusMinutes: 0,
+  todayXp: 0,
   distractions: 0,
   minutesLost: 0,
   selectedMinutes: 25,
@@ -206,17 +209,23 @@ function readState(): StudyState {
     const saved = window.localStorage.getItem(storageKey);
     if (!saved) return initialState;
     const parsed = JSON.parse(saved) as Partial<StudyState>;
+    const rawRecords = parsed.dailyRecords && Object.keys(parsed.dailyRecords).length > 0
+      ? parsed.dailyRecords
+      : Object.fromEntries((parsed.history ?? []).map((record) => [record.date, record]));
+    const dailyRecords = parsed.todayXp === undefined ? migrateLegacyDailyRecords(rawRecords) : rawRecords;
+    const currentRecord = parsed.lastStudyDate ? dailyRecords[parsed.lastStudyDate] : undefined;
     return {
       ...initialState,
       ...parsed,
-      history: parsed.history ?? [],
-      dailyRecords: parsed.dailyRecords ?? {},
+      history: rebuildHistory(dailyRecords),
+      dailyRecords,
       studyDay: parsed.studyDay ?? 0,
       weekNumber: parsed.weekNumber ?? 1,
       lastStudyDate: parsed.lastStudyDate ?? null,
       gardenFlowers: parsed.gardenFlowers ?? [],
       todaySessions: parsed.todaySessions ?? 0,
       todayFocusMinutes: parsed.todayFocusMinutes ?? 0,
+      todayXp: parsed.todayXp ?? currentRecord?.xp ?? 0,
       timerStartedAt: parsed.timerStartedAt ?? null,
       timerEndsAt: parsed.timerEndsAt ?? null,
       breakStartedAt: parsed.breakStartedAt ?? null,
@@ -226,6 +235,26 @@ function readState(): StudyState {
   } catch {
     return initialState;
   }
+}
+
+function migrateLegacyDailyRecords(records: Record<string, PlantSnapshot>): Record<string, PlantSnapshot> {
+  let previousXp = 0;
+  let previousSessions = 0;
+  return Object.fromEntries(
+    Object.values(records)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((record) => {
+        const dailyRecord = {
+          ...record,
+          xp: Math.max(0, record.xp - previousXp),
+          sessions: Math.max(0, record.sessions - previousSessions),
+          focusHours: Number(((record.focusMinutes ?? 0) / 60).toFixed(2)),
+        };
+        previousXp = record.xp;
+        previousSessions = record.sessions;
+        return [record.date, dailyRecord];
+      }),
+  );
 }
 
 function createGardenPreviewState(state: StudyState): StudyState {
@@ -245,7 +274,7 @@ function createGardenPreviewState(state: StudyState): StudyState {
       label: new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
       dayNumber: index + 1,
       weekNumber: 12,
-      xp: 2180 + index * 40,
+      xp: 20 + index * 5,
       streak: index + 1,
       pages: 18 + index * 3,
       sessions: 72 + index * 2,
@@ -263,6 +292,7 @@ function createGardenPreviewState(state: StudyState): StudyState {
     todayPages: 36,
     todaySessions: 7,
     todayFocusMinutes: 180,
+    todayXp: 55,
     studyDay: 7,
     weekNumber: 13,
     lastStudyDate: today,
@@ -286,58 +316,135 @@ function getPlantStage(xp: number, streak: number) {
   return 1;
 }
 
-function beginStudyDay(state: StudyState, dateKey: string): StudyState {
-  if (state.lastStudyDate === dateKey) return state;
-  const startingNewWeek = state.studyDay >= 7;
-  const nextWeek = state.weekNumber + (startingNewWeek ? 1 : 0);
-  const nextDay = state.studyDay === 0 || startingNewWeek ? 1 : state.studyDay + 1;
-  const completedWeek = startingNewWeek ? state.weekNumber : null;
-  const gardenFlowers = completedWeek && !state.gardenFlowers.some((flower) => flower.weekNumber === completedWeek)
-    ? [...state.gardenFlowers, { id: `${completedWeek}-${dateKey}`, weekNumber: completedWeek, plantedOn: dateKey }]
-    : state.gardenFlowers;
+function rebuildHistory(dailyRecords: Record<string, PlantSnapshot>) {
+  return Object.values(dailyRecords).sort((a, b) => a.date.localeCompare(b.date)).slice(-7);
+}
+
+function dateDifference(startKey: string, endKey: string) {
+  const start = new Date(`${startKey}T12:00:00`);
+  const end = new Date(`${endKey}T12:00:00`);
+  return Math.max(0, Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)));
+}
+
+function createDailySnapshot(
+  state: StudyState,
+  dateKey: string,
+  dayNumber: number,
+  weekNumber: number,
+  values: Partial<Pick<PlantSnapshot, 'xp' | 'pages' | 'sessions' | 'focusMinutes' | 'note'>> = {},
+): PlantSnapshot {
+  const date = new Date(`${dateKey}T12:00:00`);
+  const label = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const focusMinutes = values.focusMinutes ?? state.todayFocusMinutes;
+  const sessions = values.sessions ?? state.todaySessions;
   return {
-    ...state,
-    studyDay: nextDay,
-    weekNumber: nextWeek,
-    streak: nextDay,
+    date: dateKey,
+    label,
+    dayNumber,
+    weekNumber,
+    xp: values.xp ?? state.todayXp,
+    streak: state.streak,
+    pages: values.pages ?? state.todayPages,
+    sessions,
+    focusMinutes,
+    focusHours: Number((focusMinutes / 60).toFixed(2)),
+    stage: getPlantStage(state.xp, state.streak),
+    note: values.note ?? (sessions > 0
+      ? 'You showed up for yourself today.'
+      : dateKey === localDateKey(new Date()) ? 'Your next session is waiting.' : 'No study session recorded.'),
+  };
+}
+
+function weekHasAllStudyDays(dailyRecords: Record<string, PlantSnapshot>, weekNumber: number) {
+  return Array.from({ length: 7 }, (_, index) => index + 1).every((dayNumber) =>
+    Object.values(dailyRecords).some((record) =>
+      record.weekNumber === weekNumber && record.dayNumber === dayNumber && record.sessions > 0,
+    ),
+  );
+}
+
+function addCompletedWeekRose(flowers: GardenFlower[], dailyRecords: Record<string, PlantSnapshot>, weekNumber: number) {
+  if (!weekHasAllStudyDays(dailyRecords, weekNumber) || flowers.some((flower) => flower.weekNumber === weekNumber)) {
+    return flowers;
+  }
+  const finalDay = Object.values(dailyRecords).find((record) => record.weekNumber === weekNumber && record.dayNumber === 7);
+  return [...flowers, {
+    id: `${weekNumber}-${finalDay?.date ?? localDateKey(new Date())}`,
+    weekNumber,
+    plantedOn: finalDay?.date ?? localDateKey(new Date()),
+  }];
+}
+
+function beginStudyDay(state: StudyState, dateKey: string): StudyState {
+  if (!state.lastStudyDate) {
+    return {
+      ...state,
+      studyDay: 1,
+      streak: 1,
+      lastStudyDate: dateKey,
+      todayPages: 0,
+      todaySessions: 0,
+      todayFocusMinutes: 0,
+      todayXp: 0,
+    };
+  }
+  const daysElapsed = dateDifference(state.lastStudyDate, dateKey);
+  if (daysElapsed <= 0) return state;
+
+  const finalized = daySnapshot(state, state.lastStudyDate);
+  let dailyRecords = finalized.dailyRecords;
+  let currentDay = state.studyDay;
+  let currentWeek = state.weekNumber;
+  let gardenFlowers = state.gardenFlowers;
+
+  for (let offset = 1; offset <= daysElapsed; offset += 1) {
+    if (currentDay >= 7) {
+      gardenFlowers = addCompletedWeekRose(gardenFlowers, dailyRecords, currentWeek);
+      currentWeek += 1;
+      currentDay = 1;
+    } else {
+      currentDay = currentDay === 0 ? 1 : currentDay + 1;
+    }
+    const missingDate = shiftDateKey(state.lastStudyDate, offset);
+    dailyRecords = {
+      ...dailyRecords,
+      [missingDate]: createDailySnapshot(
+        { ...state, todayXp: 0, todayPages: 0, todaySessions: 0, todayFocusMinutes: 0, streak: currentDay },
+        missingDate,
+        currentDay,
+        currentWeek,
+        { xp: 0, pages: 0, sessions: 0, focusMinutes: 0 },
+      ),
+    };
+  }
+
+  return {
+    ...finalized,
+    studyDay: currentDay,
+    weekNumber: currentWeek,
+    streak: currentDay,
     lastStudyDate: dateKey,
     todayPages: 0,
     todaySessions: 0,
     todayFocusMinutes: 0,
+    todayXp: 0,
     gardenFlowers,
+    history: rebuildHistory(dailyRecords),
+    dailyRecords,
   };
 }
 
 function daySnapshot(state: StudyState, dateKey = state.lastStudyDate ?? localDateKey(new Date())): StudyState {
-  if (!state.lastStudyDate) return { ...state, history: [], dailyRecords: {} };
-  const date = new Date(`${dateKey}T12:00:00`);
-  const label = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  const nextSnapshot: PlantSnapshot = {
-    date: dateKey,
-    label,
-    dayNumber: state.studyDay,
-    weekNumber: state.weekNumber,
-    xp: state.xp,
-    streak: state.streak,
-    pages: state.todayPages,
-    sessions: state.sessions,
-    focusMinutes: state.todayFocusMinutes,
-    stage: getPlantStage(state.xp, state.streak),
-    note: state.todaySessions > 0 ? 'You showed up for yourself today.' : 'Your next session is waiting.',
-  };
+  if (!state.lastStudyDate) return state;
+  const nextSnapshot = createDailySnapshot(state, dateKey, state.studyDay, state.weekNumber);
   const dailyRecords = { ...state.dailyRecords, [dateKey]: nextSnapshot };
-  const history = Object.values(dailyRecords).sort((a, b) => a.date.localeCompare(b.date)).slice(-7);
-  return { ...state, history, dailyRecords };
+  return { ...state, history: rebuildHistory(dailyRecords), dailyRecords };
 }
 
 function completeFocusSession(state: StudyState, completedAt = Date.now()): StudyState {
   const dateKey = state.timerStartedAt ? localDateKey(new Date(state.timerStartedAt)) : localDateKey(new Date(completedAt));
   const activeState = beginStudyDay(state, dateKey);
-  const shouldPlantRose = activeState.studyDay === 7 && activeState.todaySessions === 0;
-  const gardenFlowers = shouldPlantRose
-    ? [...activeState.gardenFlowers, { id: `${activeState.weekNumber}-${dateKey}`, weekNumber: activeState.weekNumber, plantedOn: dateKey }]
-    : activeState.gardenFlowers;
-  return daySnapshot({
+  const completedState = daySnapshot({
     ...activeState,
     timerRunning: false,
     remainingSeconds: 0,
@@ -349,9 +456,13 @@ function completeFocusSession(state: StudyState, completedAt = Date.now()): Stud
     sessions: activeState.sessions + 1,
     todaySessions: activeState.todaySessions + 1,
     todayFocusMinutes: activeState.todayFocusMinutes + activeState.selectedMinutes,
-    gardenFlowers,
+    todayXp: activeState.todayXp + 10,
     xp: activeState.xp + 10,
   }, dateKey);
+  return {
+    ...completedState,
+    gardenFlowers: addCompletedWeekRose(completedState.gardenFlowers, completedState.dailyRecords, completedState.weekNumber),
+  };
 }
 
 function formatTime(totalSeconds: number) {
@@ -372,6 +483,12 @@ function formatStudyMinutes(totalMinutes: number) {
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
+}
+
+function formatStudyHours(totalMinutes: number) {
+  const hours = totalMinutes / 60;
+  if (hours === 0) return '0h';
+  return Number.isInteger(hours) ? `${hours}h` : `${hours.toFixed(1)}h`;
 }
 
 function IconButton({
@@ -593,6 +710,21 @@ function Home() {
 
   useEffect(() => {
     if (gardenDemo) return undefined;
+    const reconcileCalendarDate = () => {
+      setState((previous) => {
+        if (!previous.lastStudyDate || previous.timerRunning || previous.breakRunning || previous.distractionRunning) {
+          return previous;
+        }
+        return beginStudyDay(previous, localDateKey(new Date()));
+      });
+    };
+    reconcileCalendarDate();
+    const interval = window.setInterval(reconcileCalendarDate, 30_000);
+    return () => window.clearInterval(interval);
+  }, [gardenDemo]);
+
+  useEffect(() => {
+    if (gardenDemo) return undefined;
     const syncFromAnotherTab = (event: StorageEvent) => {
       if (event.key === storageKey && event.newValue) setState(readState());
     };
@@ -727,15 +859,16 @@ function Home() {
   };
 
   const addPage = (taskId: string) => {
-    const task = state.tasks.find((item) => item.id === taskId);
+    const activeState = beginStudyDay(state, localDateKey(new Date()));
+    const task = activeState.tasks.find((item) => item.id === taskId);
     if (!task || task.completedPages >= task.pages) return;
     const completedPages = task.completedPages + 1;
     const completed = completedPages >= task.pages;
-    const nextTasks = state.tasks.map((item) =>
+    const nextTasks = activeState.tasks.map((item) =>
       item.id === taskId ? { ...item, completedPages, completed } : item,
     );
     commit(
-      { ...state, tasks: nextTasks, todayPages: state.todayPages + 1, xp: state.xp + 5 },
+      { ...activeState, tasks: nextTasks, todayPages: activeState.todayPages + 1, todayXp: activeState.todayXp + 5, xp: activeState.xp + 5 },
       completed ? `${task.title} complete. A 10 minute break is ready.` : '+1 page logged. You earned 5 XP.',
     );
     setCelebration(true);
@@ -1041,9 +1174,9 @@ function Home() {
                   <Target size={21} className="heading-icon" />
                 </div>
                 <div className="large-progress"><span style={{ width: `${todayProgress}%` }} /></div>
-                 <div className="progress-foot"><span>{todayProgress}% of 3 hours minimum</span><span>{remainingFocusMinutes > 0 ? `${formatStudyMinutes(remainingFocusMinutes)} to go` : 'Goal complete'}</span></div>
+                  <div className="progress-foot"><span>{todayProgress}% of 3 hours minimum</span><span>{remainingFocusMinutes > 0 ? `${formatStudyHours(remainingFocusMinutes)} to go` : 'Goal complete'}</span></div>
                  <div className="session-dots">{Array.from({ length: todaySessionGoal }).map((_, index) => <span key={index} className={index < state.todaySessions ? 'filled' : ''} />)}</div>
-                 <div className="goal-caption"><Clock3 size={13} /> {formatStudyMinutes(state.todayFocusMinutes)} focused today · minimum 3 hours</div>
+                  <div className="goal-caption"><Clock3 size={13} /> {formatStudyHours(state.todayFocusMinutes)} focused today · minimum 3 hours</div>
                </motion.div>
                <motion.div className="panel distraction-panel" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: .98, duration: .7, ease: [0.22, 1, 0.36, 1] }}>
                 <div className="panel-heading"><div><span className="section-kicker">Stay honest</span><h3>Mind wandered?</h3></div><CircleHelp size={20} className="heading-icon" /></div>
@@ -1115,8 +1248,8 @@ function Home() {
         {view === 'history' && (
           <section className="page-section">
              <div className="page-intro-row"><div><span className="section-kicker">Weekly reflection</span><h2>The story of your plant.</h2><p>Look back at what helped your focus grow this week.</p></div><div className="week-summary"><Flame size={16} /><strong>{state.studyDay} days</strong><span>week {state.weekNumber}</span></div></div>
-             <div className="history-layout"><div className="panel history-plant-card"><PlantIllustration stage={stage} /><div className="history-plant-copy"><span className="section-kicker">Current chapter</span><h3>{stage >= 4 ? 'You are blooming.' : 'You are putting down roots.'}</h3><p>Your plant is at stage {stage}. Every focused day, session, and honest restart becomes part of its story.</p><div className="plant-xp-bar"><span style={{ width: `${Math.min(100, (state.xp / 650) * 100)}%` }} /></div><small>{state.xp} / 650 XP until full bloom</small></div></div><div className="panel timeline-panel"><div className="panel-heading"><div><span className="section-kicker">Your study days</span><h3>Day-by-day growth</h3></div><CalendarDays size={20} className="heading-icon" /></div><div className="timeline">{state.history.length === 0 ? <div className="empty-state"><Sprout size={24} /><strong>Your first study day is waiting.</strong><span>Start a focus session and it will appear here.</span></div> : state.history.map((item) => <div className="timeline-row" key={`${item.date}-${item.label}`}><div className={`timeline-icon stage-${item.stage}`}>{item.stage >= 4 ? <Flower2 size={16} /> : item.stage >= 2 ? <Sprout size={17} /> : <span />}</div><div className="timeline-date"><strong>Day {item.dayNumber ?? 0}</strong><small>{item.label} · Week {item.weekNumber ?? 1}</small></div><div className="timeline-note"><span>{item.focusMinutes ?? 0} min · {item.sessions} sessions</span><small>{item.note}</small></div><span className="timeline-xp">+{item.xp} XP</span></div>)}</div></div></div>
-            <div className="weekly-insights"><div className="insight-card"><BarChart3 size={18} /><span>Total pages</span><strong>{state.history.reduce((sum, item) => sum + item.pages, 0)}</strong><small>this week</small></div><div className="insight-card"><Clock3 size={18} /><span>Focus sessions</span><strong>{state.history.reduce((sum, item) => sum + item.sessions, 0)}</strong><small>completed</small></div><div className="insight-card"><Sparkles size={18} /><span>XP earned</span><strong>{state.xp}</strong><small>plant energy</small></div></div>
+            <div className="history-layout"><div className="panel history-plant-card"><PlantIllustration stage={stage} /><div className="history-plant-copy"><span className="section-kicker">Current chapter</span><h3>{stage >= 4 ? 'You are blooming.' : 'You are putting down roots.'}</h3><p>Your plant is at stage {stage}. Every focused day, session, and honest restart becomes part of its story.</p><div className="plant-xp-bar"><span style={{ width: `${Math.min(100, (state.xp / 650) * 100)}%` }} /></div><small>{state.xp} / 650 XP until full bloom</small></div></div><div className="panel timeline-panel"><div className="panel-heading"><div><span className="section-kicker">Your study days</span><h3>Day-by-day growth</h3></div><CalendarDays size={20} className="heading-icon" /></div><div className="timeline">{state.history.length === 0 ? <div className="empty-state"><Sprout size={24} /><strong>Your first study day is waiting.</strong><span>Start a focus session and it will appear here.</span></div> : state.history.map((item) => <div className="timeline-row" key={`${item.date}-${item.label}`}><div className={`timeline-icon stage-${item.stage}`}>{item.stage >= 4 ? <Flower2 size={16} /> : item.stage >= 2 ? <Sprout size={17} /> : <span />}</div><div className="timeline-date"><strong>Day {item.dayNumber ?? 0}</strong><small>{item.label} · Week {item.weekNumber ?? 1}</small></div><div className="timeline-note"><span>{formatStudyHours(item.focusMinutes ?? 0)} · {item.sessions} sessions</span><small>{item.note}</small></div><span className="timeline-xp">+{item.xp} XP</span></div>)}</div></div></div>
+            <div className="weekly-insights"><div className="insight-card"><BarChart3 size={18} /><span>Total pages</span><strong>{state.history.reduce((sum, item) => sum + item.pages, 0)}</strong><small>this week</small></div><div className="insight-card"><Clock3 size={18} /><span>Focus sessions</span><strong>{state.history.reduce((sum, item) => sum + item.sessions, 0)}</strong><small>completed</small></div><div className="insight-card"><Sparkles size={18} /><span>XP earned</span><strong>{state.history.reduce((sum, item) => sum + item.xp, 0)}</strong><small>this week</small></div></div>
           </section>
         )}
 

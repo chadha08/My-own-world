@@ -1,2 +1,3 @@
 - [Study Focus persistence](study-focus-persistence.md) — the first experience is local-first; future server persistence should preserve the same simple, immediate study flow.
 - [Garden visual direction](garden-visual-direction.md) — keep the bouquet scene deep green with roses layered around the plant in a compact central cluster.
+- [Dated study history](dated-study-history.md) — daily XP, pages, sessions, and focus time must be isolated by local calendar date, including missed days.
