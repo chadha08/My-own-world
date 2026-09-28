@@ -55,6 +55,15 @@ type StudyTask = {
   completed: boolean;
 };
 
+type DailyTaskSnapshot = {
+  id: string;
+  title: string;
+  subject: string;
+  pages: number;
+  completedPages: number;
+  completed: boolean;
+};
+
 type PlantSnapshot = {
   date: string;
   label: string;
@@ -66,6 +75,7 @@ type PlantSnapshot = {
   sessions: number;
   focusMinutes?: number;
   focusHours?: number;
+  tasks?: DailyTaskSnapshot[];
   stage: number;
   note: string;
 };
@@ -86,6 +96,7 @@ type StudyState = {
   todaySessions: number;
   todayFocusMinutes: number;
   todayXp: number;
+  todayTasks: DailyTaskSnapshot[];
   distractions: number;
   minutesLost: number;
   selectedMinutes: number;
@@ -173,6 +184,7 @@ const initialState: StudyState = {
   todaySessions: 0,
   todayFocusMinutes: 0,
   todayXp: 0,
+  todayTasks: [],
   distractions: 0,
   minutesLost: 0,
   selectedMinutes: 25,
@@ -226,6 +238,7 @@ function readState(): StudyState {
       todaySessions: parsed.todaySessions ?? 0,
       todayFocusMinutes: parsed.todayFocusMinutes ?? 0,
       todayXp: parsed.todayXp ?? currentRecord?.xp ?? 0,
+      todayTasks: parsed.todayTasks ?? currentRecord?.tasks ?? [],
       timerStartedAt: parsed.timerStartedAt ?? null,
       timerEndsAt: parsed.timerEndsAt ?? null,
       breakStartedAt: parsed.breakStartedAt ?? null,
@@ -249,6 +262,7 @@ function migrateLegacyDailyRecords(records: Record<string, PlantSnapshot>): Reco
           xp: Math.max(0, record.xp - previousXp),
           sessions: Math.max(0, record.sessions - previousSessions),
           focusHours: Number(((record.focusMinutes ?? 0) / 60).toFixed(2)),
+          tasks: record.tasks ?? [],
         };
         previousXp = record.xp;
         previousSessions = record.sessions;
@@ -331,7 +345,7 @@ function createDailySnapshot(
   dateKey: string,
   dayNumber: number,
   weekNumber: number,
-  values: Partial<Pick<PlantSnapshot, 'xp' | 'pages' | 'sessions' | 'focusMinutes' | 'note'>> = {},
+  values: Partial<Pick<PlantSnapshot, 'xp' | 'pages' | 'sessions' | 'focusMinutes' | 'note' | 'tasks'>> = {},
 ): PlantSnapshot {
   const date = new Date(`${dateKey}T12:00:00`);
   const label = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -348,10 +362,29 @@ function createDailySnapshot(
     sessions,
     focusMinutes,
     focusHours: Number((focusMinutes / 60).toFixed(2)),
+    tasks: values.tasks ?? state.todayTasks,
     stage: getPlantStage(state.xp, state.streak),
     note: values.note ?? (sessions > 0
       ? 'You showed up for yourself today.'
       : dateKey === localDateKey(new Date()) ? 'Your next session is waiting.' : 'No study session recorded.'),
+  };
+}
+
+function snapshotTask(task: StudyTask): DailyTaskSnapshot {
+  return {
+    id: task.id,
+    title: task.title,
+    subject: task.subject,
+    pages: task.pages,
+    completedPages: task.completedPages,
+    completed: task.completed,
+  };
+}
+
+function recordDailyTask(state: StudyState, task: StudyTask): StudyState {
+  return {
+    ...state,
+    todayTasks: [snapshotTask(task), ...state.todayTasks.filter((item) => item.id !== task.id)],
   };
 }
 
@@ -386,6 +419,7 @@ function beginStudyDay(state: StudyState, dateKey: string): StudyState {
       todaySessions: 0,
       todayFocusMinutes: 0,
       todayXp: 0,
+      todayTasks: [],
     };
   }
   const daysElapsed = dateDifference(state.lastStudyDate, dateKey);
@@ -413,7 +447,7 @@ function beginStudyDay(state: StudyState, dateKey: string): StudyState {
         missingDate,
         currentDay,
         currentWeek,
-        { xp: 0, pages: 0, sessions: 0, focusMinutes: 0 },
+        { xp: 0, pages: 0, sessions: 0, focusMinutes: 0, tasks: [] },
       ),
     };
   }
@@ -428,6 +462,7 @@ function beginStudyDay(state: StudyState, dateKey: string): StudyState {
     todaySessions: 0,
     todayFocusMinutes: 0,
     todayXp: 0,
+    todayTasks: [],
     gardenFlowers,
     history: rebuildHistory(dailyRecords),
     dailyRecords,
@@ -811,12 +846,14 @@ function Home() {
     if (state.breakRunning || state.distractionRunning) return;
     const now = Date.now();
     const activeState = beginStudyDay(state, localDateKey(new Date(now)));
-    const compensation = activeState.compensationSeconds;
-    const baseSeconds = activeState.remainingSeconds === activeState.selectedMinutes * 60
-      ? activeState.selectedMinutes * 60 + compensation
-      : activeState.remainingSeconds;
+    const focusedTask = activeTask ? activeState.tasks.find((task) => task.id === activeTask.id) : undefined;
+    const taskState = focusedTask ? recordDailyTask(activeState, focusedTask) : activeState;
+    const compensation = taskState.compensationSeconds;
+    const baseSeconds = taskState.remainingSeconds === taskState.selectedMinutes * 60
+      ? taskState.selectedMinutes * 60 + compensation
+      : taskState.remainingSeconds;
     commit(
-      { ...activeState, timerRunning: true, remainingSeconds: baseSeconds, timerStartedAt: now, timerEndsAt: now + baseSeconds * 1000 },
+      { ...taskState, timerRunning: true, remainingSeconds: baseSeconds, timerStartedAt: now, timerEndsAt: now + baseSeconds * 1000 },
       compensation > 0
         ? `Focus session started with ${formatDurationLabel(compensation)} to make up.`
         : 'Focus session started. Your next session is enough.',
@@ -867,8 +904,10 @@ function Home() {
     const nextTasks = activeState.tasks.map((item) =>
       item.id === taskId ? { ...item, completedPages, completed } : item,
     );
+    const updatedTask = nextTasks.find((item) => item.id === taskId);
+    const taskState = updatedTask ? recordDailyTask({ ...activeState, tasks: nextTasks }, updatedTask) : { ...activeState, tasks: nextTasks };
     commit(
-      { ...activeState, tasks: nextTasks, todayPages: activeState.todayPages + 1, todayXp: activeState.todayXp + 5, xp: activeState.xp + 5 },
+      { ...taskState, todayPages: activeState.todayPages + 1, todayXp: activeState.todayXp + 5, xp: activeState.xp + 5 },
       completed ? `${task.title} complete. A 10 minute break is ready.` : '+1 page logged. You earned 5 XP.',
     );
     setCelebration(true);
@@ -877,10 +916,13 @@ function Home() {
   };
 
   const toggleTask = (taskId: string) => {
-    const nextTasks = state.tasks.map((task) =>
+    const activeState = beginStudyDay(state, localDateKey(new Date()));
+    const nextTasks = activeState.tasks.map((task) =>
       task.id === taskId ? { ...task, completed: !task.completed } : task,
     );
-    commit({ ...state, tasks: nextTasks }, 'Task list updated.');
+    const updatedTask = nextTasks.find((task) => task.id === taskId);
+    const taskState = updatedTask ? recordDailyTask({ ...activeState, tasks: nextTasks }, updatedTask) : { ...activeState, tasks: nextTasks };
+    commit(taskState, 'Task list updated.');
   };
 
   const deleteTask = (taskId: string) => {
@@ -957,7 +999,7 @@ function Home() {
       priority: 'Medium',
       completed: false,
     };
-    commit({ ...state, tasks: [...state.tasks, task] }, 'New task added to your plan.');
+    commit({ ...state, tasks: [task, ...state.tasks] }, 'New task added to your plan.');
     setNewTaskTitle('');
     setNewTaskPages('5');
     setShowTaskForm(false);
@@ -1248,7 +1290,7 @@ function Home() {
         {view === 'history' && (
           <section className="page-section">
              <div className="page-intro-row"><div><span className="section-kicker">Weekly reflection</span><h2>The story of your plant.</h2><p>Look back at what helped your focus grow this week.</p></div><div className="week-summary"><Flame size={16} /><strong>{state.studyDay} days</strong><span>week {state.weekNumber}</span></div></div>
-            <div className="history-layout"><div className="panel history-plant-card"><PlantIllustration stage={stage} /><div className="history-plant-copy"><span className="section-kicker">Current chapter</span><h3>{stage >= 4 ? 'You are blooming.' : 'You are putting down roots.'}</h3><p>Your plant is at stage {stage}. Every focused day, session, and honest restart becomes part of its story.</p><div className="plant-xp-bar"><span style={{ width: `${Math.min(100, (state.xp / 650) * 100)}%` }} /></div><small>{state.xp} / 650 XP until full bloom</small></div></div><div className="panel timeline-panel"><div className="panel-heading"><div><span className="section-kicker">Your study days</span><h3>Day-by-day growth</h3></div><CalendarDays size={20} className="heading-icon" /></div><div className="timeline">{state.history.length === 0 ? <div className="empty-state"><Sprout size={24} /><strong>Your first study day is waiting.</strong><span>Start a focus session and it will appear here.</span></div> : state.history.map((item) => <div className="timeline-row" key={`${item.date}-${item.label}`}><div className={`timeline-icon stage-${item.stage}`}>{item.stage >= 4 ? <Flower2 size={16} /> : item.stage >= 2 ? <Sprout size={17} /> : <span />}</div><div className="timeline-date"><strong>Day {item.dayNumber ?? 0}</strong><small>{item.label} · Week {item.weekNumber ?? 1}</small></div><div className="timeline-note"><span>{formatStudyHours(item.focusMinutes ?? 0)} · {item.sessions} sessions</span><small>{item.note}</small></div><span className="timeline-xp">+{item.xp} XP</span></div>)}</div></div></div>
+            <div className="history-layout"><div className="panel history-plant-card"><PlantIllustration stage={stage} /><div className="history-plant-copy"><span className="section-kicker">Current chapter</span><h3>{stage >= 4 ? 'You are blooming.' : 'You are putting down roots.'}</h3><p>Your plant is at stage {stage}. Every focused day, session, and honest restart becomes part of its story.</p><div className="plant-xp-bar"><span style={{ width: `${Math.min(100, (state.xp / 650) * 100)}%` }} /></div><small>{state.xp} / 650 XP until full bloom</small></div></div><div className="panel timeline-panel"><div className="panel-heading"><div><span className="section-kicker">Your study days</span><h3>Day-by-day growth</h3></div><CalendarDays size={20} className="heading-icon" /></div><div className="timeline">{state.history.length === 0 ? <div className="empty-state"><Sprout size={24} /><strong>Your first study day is waiting.</strong><span>Start a focus session and it will appear here.</span></div> : state.history.map((item) => <div className="timeline-row" key={`${item.date}-${item.label}`}><div className={`timeline-icon stage-${item.stage}`}>{item.stage >= 4 ? <Flower2 size={16} /> : item.stage >= 2 ? <Sprout size={17} /> : <span />}</div><div className="timeline-date"><strong>Day {item.dayNumber ?? 0}</strong><small>{item.label} · Week {item.weekNumber ?? 1}</small></div><div className="timeline-note"><span>{formatStudyHours(item.focusMinutes ?? 0)} · {item.sessions} sessions</span><small>{item.note}</small>{item.tasks && item.tasks.length > 0 && <div className="timeline-tasks">{item.tasks.map((task) => <div className="timeline-task" key={task.id}><Check size={12} /><span>{task.title}</span><small>{task.completedPages}/{task.pages} pages</small></div>)}</div>}</div><span className="timeline-xp">+{item.xp} XP</span></div>)}</div></div></div>
             <div className="weekly-insights"><div className="insight-card"><BarChart3 size={18} /><span>Total pages</span><strong>{state.history.reduce((sum, item) => sum + item.pages, 0)}</strong><small>this week</small></div><div className="insight-card"><Clock3 size={18} /><span>Focus sessions</span><strong>{state.history.reduce((sum, item) => sum + item.sessions, 0)}</strong><small>completed</small></div><div className="insight-card"><Sparkles size={18} /><span>XP earned</span><strong>{state.history.reduce((sum, item) => sum + item.xp, 0)}</strong><small>this week</small></div></div>
           </section>
         )}

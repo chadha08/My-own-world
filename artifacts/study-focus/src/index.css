@@ -752,6 +752,11 @@ input:focus, select:focus, textarea:focus { border-color: #88a087; box-shadow: 0
 .timeline-date strong { font-size: 11px; }
 .timeline-date small, .timeline-note small { color: #8b9588; font-size: 9px; margin-top: 3px; }
 .timeline-note span { color: #6e846a; font-size: 10px; font-weight: 800; }
+.timeline-tasks { display: grid; gap: 4px; margin-top: 8px; }
+.timeline-task { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: center; gap: 5px; padding: 5px 7px; border-radius: 7px; background: #f5f7f2; color: #536c4f; font-size: 10px; }
+.timeline-task svg { color: #88a37d; }
+.timeline-task span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; font-weight: 700; }
+.timeline-task small { margin: 0; color: #8b9588; font-size: 8px; }
 .timeline-xp { color: #9d8054; font-size: 10px; font-weight: 800; }
 .weekly-insights { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 17px; }
 .insight-card { padding: 18px; border: 1px solid var(--line); background: rgba(255,253,250,.67); border-radius: 14px; display: flex; flex-direction: column; gap: 7px; }
