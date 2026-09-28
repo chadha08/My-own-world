@@ -692,7 +692,9 @@ function Home() {
   const [calendarNoteDraft, setCalendarNoteDraft] = useState('');
   const [diaryDate, setDiaryDate] = useState(() => localDateKey(new Date()));
   const [diaryDraft, setDiaryDraft] = useState('');
+  const [serverReady, setServerReady] = useState(gardenDemo);
   const breakCompletionNotified = useRef(false);
+  const lastSyncedState = useRef('');
 
   const stage = getPlantStage(state.xp, state.streak);
   const incompleteTasks = state.tasks.filter((task) => !task.completed);
@@ -742,6 +744,59 @@ function Home() {
   useEffect(() => {
     if (!gardenDemo) window.localStorage.setItem(storageKey, JSON.stringify(state));
   }, [gardenDemo, state]);
+
+  useEffect(() => {
+    if (gardenDemo) return undefined;
+    let cancelled = false;
+    fetch('/api/study-state', { credentials: 'include' })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Study state request failed: ${response.status}`);
+        return response.json() as Promise<{ state?: unknown }>;
+      })
+      .then((payload) => {
+        if (cancelled) return;
+        if (payload.state && typeof payload.state === 'object' && !Array.isArray(payload.state)) {
+          window.localStorage.setItem(storageKey, JSON.stringify(payload.state));
+          setState(readState());
+        }
+        setServerReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setServerReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [gardenDemo]);
+
+  useEffect(() => {
+    if (gardenDemo || !serverReady) return undefined;
+    const persistedState = {
+      ...state,
+      remainingSeconds: state.timerRunning ? 0 : state.remainingSeconds,
+      breakRemainingSeconds: state.breakRunning ? 0 : state.breakRemainingSeconds,
+    };
+    const fingerprint = JSON.stringify({
+      ...persistedState,
+      remainingSeconds: 0,
+      breakRemainingSeconds: 0,
+    });
+    if (lastSyncedState.current === fingerprint) return undefined;
+    lastSyncedState.current = fingerprint;
+    const timeout = window.setTimeout(() => {
+      fetch('/api/study-state', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: persistedState }),
+      }).then((response) => {
+        if (!response.ok) throw new Error(`Study state save failed: ${response.status}`);
+      }).catch(() => {
+        if (lastSyncedState.current === fingerprint) lastSyncedState.current = '';
+      });
+    }, 350);
+    return () => window.clearTimeout(timeout);
+  }, [gardenDemo, serverReady, state]);
 
   useEffect(() => {
     if (gardenDemo) return undefined;
