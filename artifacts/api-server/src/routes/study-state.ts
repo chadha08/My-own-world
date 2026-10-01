@@ -58,4 +58,15 @@ router.put("/study-state", async (req, res) => {
   }
 });
 
+router.delete("/study-state", async (req, res) => {
+  try {
+    const visitorId = getVisitorId(req, res);
+    await db.delete(studyStateTable).where(eq(studyStateTable.id, visitorId));
+    res.status(204).end();
+  } catch (error) {
+    req.log.error({ error }, "Failed to reset study state");
+    res.status(500).json({ message: "Unable to reset study state" });
+  }
+});
+
 export default router;

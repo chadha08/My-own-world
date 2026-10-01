@@ -253,19 +253,27 @@ function readState(): StudyState {
 function migrateLegacyDailyRecords(records: Record<string, PlantSnapshot>): Record<string, PlantSnapshot> {
   let previousXp = 0;
   let previousSessions = 0;
+  let previousPages = 0;
+  let previousFocusMinutes = 0;
   return Object.fromEntries(
     Object.values(records)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map((record) => {
+        const pages = Math.max(0, record.pages - previousPages);
+        const focusMinutes = Math.max(0, (record.focusMinutes ?? 0) - previousFocusMinutes);
         const dailyRecord = {
           ...record,
           xp: Math.max(0, record.xp - previousXp),
           sessions: Math.max(0, record.sessions - previousSessions),
-          focusHours: Number(((record.focusMinutes ?? 0) / 60).toFixed(2)),
+          pages,
+          focusMinutes,
+          focusHours: Number((focusMinutes / 60).toFixed(2)),
           tasks: record.tasks ?? [],
         };
         previousXp = record.xp;
         previousSessions = record.sessions;
+        previousPages = record.pages;
+        previousFocusMinutes = record.focusMinutes ?? 0;
         return [record.date, dailyRecord];
       }),
   );
@@ -477,7 +485,7 @@ function daySnapshot(state: StudyState, dateKey = state.lastStudyDate ?? localDa
 }
 
 function completeFocusSession(state: StudyState, completedAt = Date.now()): StudyState {
-  const dateKey = state.timerStartedAt ? localDateKey(new Date(state.timerStartedAt)) : localDateKey(new Date(completedAt));
+  const dateKey = localDateKey(new Date(completedAt));
   const activeState = beginStudyDay(state, dateKey);
   const completedState = daySnapshot({
     ...activeState,
@@ -521,9 +529,12 @@ function formatStudyMinutes(totalMinutes: number) {
 }
 
 function formatStudyHours(totalMinutes: number) {
-  const hours = totalMinutes / 60;
+  return formatHoursValue(totalMinutes / 60);
+}
+
+function formatHoursValue(hours: number) {
   if (hours === 0) return '0h';
-  return Number.isInteger(hours) ? `${hours}h` : `${hours.toFixed(1)}h`;
+  return `${Number(hours.toFixed(2))}h`;
 }
 
 function IconButton({
@@ -695,6 +706,9 @@ function Home() {
   const [serverReady, setServerReady] = useState(gardenDemo);
   const breakCompletionNotified = useRef(false);
   const lastSyncedState = useRef('');
+  const pendingSyncTimeout = useRef<number | null>(null);
+  const pendingSyncRequest = useRef<Promise<void> | null>(null);
+  const resettingData = useRef(false);
 
   const stage = getPlantStage(state.xp, state.streak);
   const incompleteTasks = state.tasks.filter((task) => !task.completed);
@@ -741,6 +755,43 @@ function Home() {
     }
   };
 
+  const resetStudyData = async () => {
+    if (resettingData.current) return;
+    const confirmed = window.confirm(
+      'Reset this browser’s Study Focus data? This deletes its study history, tasks, notes, diary entries, subjects, settings, and garden progress. Other browsers will not be affected.',
+    );
+    if (!confirmed) return;
+    if (!serverReady) {
+      setNotice('Your saved data is still loading. Please try again in a moment.');
+      return;
+    }
+
+    resettingData.current = true;
+    if (pendingSyncTimeout.current !== null) {
+      window.clearTimeout(pendingSyncTimeout.current);
+      pendingSyncTimeout.current = null;
+    }
+
+    try {
+      await pendingSyncRequest.current?.catch(() => undefined);
+      const response = await fetch('/api/study-state', { method: 'DELETE', credentials: 'include' });
+      if (!response.ok) throw new Error(`Study state reset failed: ${response.status}`);
+      window.localStorage.removeItem(storageKey);
+      lastSyncedState.current = '';
+      setState(initialState);
+      setView('overview');
+      setShowTaskForm(false);
+      setEditingTaskId(null);
+      setDiaryDraft('');
+      setCalendarNoteDraft('');
+      setNotice('Your study space has been reset.');
+    } catch {
+      setNotice('Could not reset saved data. Your progress has been kept; please try again.');
+    } finally {
+      resettingData.current = false;
+    }
+  };
+
   useEffect(() => {
     if (!gardenDemo) window.localStorage.setItem(storageKey, JSON.stringify(state));
   }, [gardenDemo, state]);
@@ -770,7 +821,7 @@ function Home() {
   }, [gardenDemo]);
 
   useEffect(() => {
-    if (gardenDemo || !serverReady) return undefined;
+    if (gardenDemo || !serverReady || resettingData.current) return undefined;
     const persistedState = {
       ...state,
       remainingSeconds: state.timerRunning ? 0 : state.remainingSeconds,
@@ -784,7 +835,8 @@ function Home() {
     if (lastSyncedState.current === fingerprint) return undefined;
     lastSyncedState.current = fingerprint;
     const timeout = window.setTimeout(() => {
-      fetch('/api/study-state', {
+      pendingSyncTimeout.current = null;
+      pendingSyncRequest.current = fetch('/api/study-state', {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -795,23 +847,25 @@ function Home() {
         if (lastSyncedState.current === fingerprint) lastSyncedState.current = '';
       });
     }, 350);
-    return () => window.clearTimeout(timeout);
+    pendingSyncTimeout.current = timeout;
+    return () => {
+      window.clearTimeout(timeout);
+      if (pendingSyncTimeout.current === timeout) pendingSyncTimeout.current = null;
+    };
   }, [gardenDemo, serverReady, state]);
 
   useEffect(() => {
-    if (gardenDemo) return undefined;
+    if (gardenDemo || !serverReady) return undefined;
     const reconcileCalendarDate = () => {
       setState((previous) => {
-        if (!previous.lastStudyDate || previous.timerRunning || previous.breakRunning || previous.distractionRunning) {
-          return previous;
-        }
+        if (!previous.lastStudyDate) return previous;
         return beginStudyDay(previous, localDateKey(new Date()));
       });
     };
     reconcileCalendarDate();
     const interval = window.setInterval(reconcileCalendarDate, 30_000);
     return () => window.clearInterval(interval);
-  }, [gardenDemo]);
+  }, [gardenDemo, serverReady]);
 
   useEffect(() => {
     if (gardenDemo) return undefined;
@@ -1398,6 +1452,20 @@ function Home() {
 
         {view === 'settings' && (
           <section className="page-section"><div className="page-intro-row"><div><span className="section-kicker">Your space</span><h2>Make Study Focus yours.</h2><p>These preferences stay on this device.</p></div><Settings2 size={34} className="journal-mark" /></div><div className="panel settings-panel"><label>Your name<input value={state.displayName} onChange={(event) => setState(daySnapshot({ ...state, displayName: event.target.value }))} /></label><div className="goal-setting-note"><span>Daily focus target</span><strong>3 hours minimum</strong><small>At least {todaySessionGoal} sessions at {state.selectedMinutes} minutes each.</small></div><label>Default subject<select value={state.subject} onChange={(event) => setState({ ...state, subject: event.target.value })}>{state.subjects.map((subject) => <option key={subject}>{subject}</option>)}</select></label><label>Study mode<select value={state.mode} onChange={(event) => setState({ ...state, mode: event.target.value as StudyMode })}><option>Learning</option><option>Test prep</option><option>Normal study</option></select></label></div><div className="panel subject-manager"><div className="subject-manager-heading"><div><span className="section-kicker">Your library</span><h3>Your subjects</h3><p>Create the subjects that match your life and your study track.</p></div><BookOpen size={22} /></div><div className="subject-chips">{state.subjects.map((subject, index) => <motion.div layout key={subject} className="subject-chip"><span className={`subject-swatch swatch-${index % 5}`} />{subject}<button onClick={() => removeSubject(subject)} aria-label={`Remove ${subject}`}><X size={13} /></button></motion.div>)}</div><div className="subject-add-row"><input value={newSubject} onChange={(event) => setNewSubject(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && addSubject()} placeholder="e.g. Literature, Physics, Art history" /><button className="primary-button compact" onClick={addSubject}><Plus size={15} /> Add subject</button></div></div></section>
+        )}
+        {view === 'settings' && (
+          <section className="page-section reset-data-section">
+            <div className="panel reset-data-panel">
+              <div>
+                <span className="section-kicker">Start fresh</span>
+                <h3>Reset your study data</h3>
+                <p>Erase the progress saved for this browser. Other browsers will keep their own data.</p>
+              </div>
+              <button className="secondary-button" onClick={resetStudyData} disabled={!serverReady}>
+                <Trash2 size={15} /> Reset study data
+              </button>
+            </div>
+          </section>
         )}
       </motion.main>
 
